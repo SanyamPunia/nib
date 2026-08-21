@@ -1,0 +1,154 @@
+@import "tailwindcss";
+
+/*
+ * Colour lives here and nowhere else. Components reference tokens, never a hex value and
+ * never a palette utility. The canvas is included in that: `arena.tsx` reads these
+ * properties off its own element at draw time rather than holding colours of its own, so
+ * the drawing and the page cannot disagree about the theme.
+ *
+ * The desk is built out of near-neutrals and the two pens carry every bit of chroma on the
+ * page. Raising the desk's contrast makes the surface shout and the pens disappear into it,
+ * and the pens are the only thing anybody is looking at.
+ *
+ * There is no `data-theme` override yet because there is no control that would set one.
+ * The theme follows the system until a toggle exists, and the toggle is the change that
+ * adds the attribute, not something to leave a selector waiting for.
+ */
+:root {
+  --surface: #e9e7e1;
+  --desk: #fbfaf8;
+  --desk-hover: #f2f0ea;
+  --desk-edge: #d6d1c7;
+  --focus-ring: #b6b0a4;
+  /*
+   * The near face of the slab, below the desk's own edge. It has to be darker than the desk
+   * and darker than the page, or the desk reads as a flat card rather than as something a
+   * pen can fall off.
+   */
+  --desk-drop: #cdc7bb;
+
+  /* One pair per model in `lib/pens.ts`. Every model works on either desk tone. */
+  --pen-slate: #38445e;
+  --pen-slate-grip: #263044;
+  --pen-brick: #a8483c;
+  --pen-brick-grip: #8a382e;
+  --pen-graphite: #4a4a52;
+  --pen-graphite-grip: #33333a;
+  --pen-forest: #35604a;
+  --pen-forest-grip: #244233;
+  --pen-amber: #a06a1f;
+  --pen-amber-grip: #7d5115;
+  --pen-plum: #6b3f63;
+  --pen-plum-grip: #4e2c48;
+  /*
+   * The lit and shaded edges of a pen, painted as a gradient across its short axis. This
+   * is the whole of the arena's dimensionality: the camera looks almost straight down, so
+   * a pen is read as round by its shading and by the shadow under it, not by perspective.
+   */
+  --pen-sheen: #ffffff;
+  --pen-shade: #1b1b1f;
+
+  --shadow: #26262b;
+
+  --ink: #2a2a2c;
+  --ink-soft: #8a8a90;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #08080a;
+    --desk: #1c1c22;
+    /* Elevated surfaces go lighter on hover in dark, never darker. */
+    --desk-hover: #25252c;
+    --desk-edge: #34343d;
+    --focus-ring: #5b5b66;
+    --desk-drop: #101015;
+
+    /*
+     * Both pens lighten in dark mode. The desk is the darkest thing on the page in this
+     * theme, so a pen has to sit above it, and the light and dark versions of a pen are
+     * therefore not the same colour at different brightness.
+     */
+    --pen-slate: #7b8cb4;
+    --pen-slate-grip: #5d6c91;
+    --pen-brick: #cd7b6e;
+    --pen-brick-grip: #a85f54;
+    --pen-graphite: #9a9aa6;
+    --pen-graphite-grip: #74747f;
+    --pen-forest: #74a98d;
+    --pen-forest-grip: #547f68;
+    --pen-amber: #cfa257;
+    --pen-amber-grip: #a67d3c;
+    --pen-plum: #b087a8;
+    --pen-plum-grip: #8a6683;
+    --pen-shade: #000000;
+
+    --shadow: #000000;
+
+    --ink: #e6e6ea;
+    --ink-soft: #7e7e88;
+  }
+}
+
+/*
+ * Tokens the markup needs as utilities. Registering them here is what lets a component
+ * write `bg-desk` instead of an arbitrary value pointing at the variable, so the ban on
+ * arbitrary colour values holds without the tokens becoming unreachable.
+ */
+@theme inline {
+  --color-surface: var(--surface);
+  --color-desk: var(--desk);
+  --color-desk-hover: var(--desk-hover);
+  --color-desk-edge: var(--desk-edge);
+  --color-focus-ring: var(--focus-ring);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-pen-slate: var(--pen-slate);
+  --color-pen-brick: var(--pen-brick);
+  --color-pen-graphite: var(--pen-graphite);
+  --color-pen-forest: var(--pen-forest);
+  --color-pen-amber: var(--pen-amber);
+  --color-pen-plum: var(--pen-plum);
+}
+
+/*
+ * Everything renders lowercase, and it is done here rather than in the copy. The markup
+ * keeps real casing, so a screen reader, the page title and anything a crawler reads all
+ * still get a proper sentence.
+ */
+body {
+  background: var(--surface);
+  color: var(--ink);
+  text-transform: lowercase;
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Preflight sets `font: inherit` on controls, which does not carry `text-transform`. */
+button,
+input,
+select,
+textarea {
+  text-transform: inherit;
+}
+
+@layer utilities {
+  /*
+   * Room for a phone's notch and its home indicator.
+   *
+   * The page is `h-dvh` and everything is border-box, so this comes out of that height rather than
+   * adding to it, and the page still fills the window exactly. The bottom keeps a floor of its own
+   * because the settings sit right on the edge otherwise, on a phone with no indicator as much as
+   * on a desktop.
+   */
+  .safe-area {
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* The arena is a game surface. Nothing about it should behave like a document. */
+canvas {
+  touch-action: none;
+  user-select: none;
+}
