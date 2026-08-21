@@ -291,6 +291,40 @@ trade: letting it collapse resizes the desk on the first flick of every match.
 
 Adding a control to that block means deciding when it is absent, not only what it does.
 
+### The panel grows, it does not appear
+
+The choices open on a 300ms height animation rather than popping into place. Its height comes from a
+grid row, so nothing has to measure how tall the choices are at any width:
+
+```tsx
+<div data-setup inert={!setupOpen} className="grid transition-[grid-template-rows]"
+     style={{ gridTemplateRows: setupOpen ? "minmax(0, 1fr)" : "minmax(0, 0fr)" }}>
+  <div className="relative min-h-0 overflow-hidden">{choices}</div>
+</div>
+```
+
+Three parts of that are load-bearing, and each one was a bug first.
+
+**`minmax(0, 0fr)` and never a bare `0fr`.** A bare `fr` means `minmax(auto, 1fr)`, and that `auto`
+floor is the content's own minimum height. The row then never collapses. It reads as closed on a
+desktop, where the desk has room to give up, and holds the page taller than the window on a phone.
+
+**`relative` on the clip.** The pen radios are `sr-only`, which is `position: absolute`, and an
+absolute box is only clipped by an ancestor that is also its containing block. With every ancestor
+static, the radios took their containing block from outside the clip and hung 67px below the fold,
+invisible but still scrollable. `pnpm verify` caught this, not a glance at the screen.
+
+**`inert` while closed.** The panel stays mounted so both directions animate, which means it has to
+be taken out of reach by hand. A panel that is invisible but still focusable and still read aloud is
+worse than one that pops.
+
+The trigger is one button whose label swaps rather than two that trade places, at a fixed width, so
+neither its position nor its size moves when the panel opens.
+
+Anything that measures the footer, the canvas, or a pen's position has to wait out the transition
+first. `pnpm verify` has a `panelSettled()` for exactly that, and stale measurements have bitten
+that file more than any other mistake.
+
 ## Architecture
 
 ```

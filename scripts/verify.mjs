@@ -529,6 +529,30 @@ try {
   await page.waitForSelector("canvas");
   await new Promise((r) => setTimeout(r, 300));
 
+  /*
+   * The setup lives behind one control, so anything that reaches for a choice has to open it first.
+   * The collapsed control is the only thing on the page carrying `aria-expanded="false"`, which is
+   * what makes it addressable without a test-only attribute.
+   */
+  const openSetup = () =>
+    page.evaluate(() => {
+      const control = [...document.querySelectorAll("button")].find(
+        (el) => el.getAttribute("aria-expanded") === "false",
+      );
+      if (!(control instanceof HTMLElement)) return false;
+      control.click();
+      return true;
+    });
+
+  /* Long enough to outlast the panel's 300ms grow, so nothing is measured mid-transition. */
+  const panelSettled = async () => {
+    await new Promise((r) => setTimeout(r, 420));
+    return true;
+  };
+
+  check("the setup opens from its one control", await openSetup());
+  await panelSettled();
+
   const picked = await page.evaluate(() => {
     const chip = [...document.querySelectorAll('[role="radio"]')].find(
       (el) => el.innerText.trim().toLowerCase() === "easy",
@@ -599,6 +623,8 @@ try {
       return true;
     }, name);
 
+  await openSetup();
+  await panelSettled();
   const withSlate = await canvasHash();
   check("the pen catalogue can be picked from", await pickPen("Graphite"));
   await new Promise((r) => setTimeout(r, 250));
@@ -651,6 +677,8 @@ try {
     deskAcross > phoneBox.w * 0.8,
     `${Math.round(deskAcross)}px of ${Math.round(phoneBox.w)}px`,
   );
+  await openSetup();
+  await panelSettled();
   const clipped = await page.evaluate(() => {
     const labels = [...document.querySelectorAll('input[type="radio"][name="pen"]')].map((el) =>
       (el.parentElement ?? el).getBoundingClientRect(),
@@ -670,9 +698,26 @@ try {
    * function the app draws with, so this drag needs to know nothing about which way round the desk
    * ended up.
    */
+  /*
+   * Measured again, after the setup was opened and closed above. Opening it grows the footer and
+   * shrinks the canvas, so anything holding a box from before that is pointing at where the pen used
+   * to be. This is the third time a stale measurement has bitten this file.
+   */
+  await page.evaluate(() => {
+    const done = [...document.querySelectorAll("button")].find((el) =>
+      (el.textContent ?? "").trim().toLowerCase().includes("done"),
+    );
+    if (done instanceof HTMLElement) done.click();
+  });
+  await new Promise((r) => setTimeout(r, 300));
+  const flickBox = await page.$eval("canvas", (el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.x, y: r.y, w: r.width, h: r.height };
+  });
+  const flickView = { width: flickBox.w, height: flickBox.h, dpr: 3 };
   const phoneAt = (x, y) => {
-    const p = toCanvas(phoneView, x, y);
-    return { x: phoneBox.x + p.x, y: phoneBox.y + p.y };
+    const p = toCanvas(flickView, x, y);
+    return { x: flickBox.x + p.x, y: flickBox.y + p.y };
   };
   const phoneHold = phoneAt(-START_OFFSET, 0);
   const phonePull = phoneAt(-START_OFFSET - 5, 0);
@@ -706,11 +751,53 @@ try {
   await page.waitForSelector("canvas");
   await new Promise((r) => setTimeout(r, 300));
 
-  const settingsShown = () =>
-    page.evaluate(
-      () => document.querySelectorAll('input[type="radio"][name="pen"]').length > 0,
+  /*
+   * What the bottom of the screen is for.
+   *
+   * There is one thing to do on this screen and it is flick a pen. The choices are a once-a-session
+   * decision, so collapsed there is a single control down there, during a match there is nothing at
+   * all, and the choices appear only when asked for.
+   */
+  /*
+   * The panel animates open and shut, so it stays in the document while collapsed and cannot be
+   * tested by asking whether the choices exist. Two things matter instead. A player cares whether
+   * the panel takes up any room, which is its height. A screen reader cares about `inert`, because
+   * a panel that is invisible but still focusable and still read aloud is worse than one that pops.
+   */
+  const panelState = () =>
+    page.evaluate(() => {
+      const panel = document.querySelector("[data-setup]");
+      if (!panel) return null;
+      return {
+        height: panel.getBoundingClientRect().height,
+        reachable: !panel.hasAttribute("inert"),
+      };
+    });
+  const choicesShown = async () => {
+    const panel = await panelState();
+    return panel !== null && panel.height > 1 && panel.reachable;
+  };
+  const controlShown = () =>
+    page.evaluate(() => document.querySelectorAll('button[aria-expanded="false"]').length);
+
+  check("before a match the bottom holds one control", (await controlShown()) === 1);
+  check("and the choices are not on screen until asked for", !(await choicesShown()));
+  /*
+   * Exactly zero and not merely small. The row is sized `minmax(0, 0fr)` closed, and a bare `0fr`
+   * would mean `minmax(auto, 0fr)`, whose `auto` floor is the choices' own height. That collapses
+   * to nothing visually here but leaves the panel holding the page taller than the window.
+   */
+  check("a closed panel takes up no room at all", (await panelState())?.height === 0);
+  const opened = (await openSetup()) && (await panelSettled());
+  check("opening it shows the choices", opened && (await choicesShown()));
+  await page.evaluate(() => {
+    const done = [...document.querySelectorAll("button")].find((el) =>
+      (el.textContent ?? "").trim().toLowerCase().includes("done"),
     );
-  check("the settings are there before a match", await settingsShown());
+    if (done instanceof HTMLElement) done.click();
+  });
+  await panelSettled();
+  check("closing it puts them away", !(await choicesShown()));
 
   const endHold = at(-START_OFFSET, 0);
   const endPull = at(-START_OFFSET + 12, 0);
@@ -726,7 +813,7 @@ try {
     { timeout: 20000 },
   );
   await new Promise((r) => setTimeout(r, 1600));
-  check("the settings are gone once the match is decided", !(await settingsShown()));
+  check("a finished match still offers the setup, still collapsed", !(await choicesShown()));
 
   const askedAgain = await page.evaluate(() => {
     const again = [...document.querySelectorAll("button")].find((el) =>
@@ -738,7 +825,6 @@ try {
   });
   check("a result offers another match", askedAgain);
   await new Promise((r) => setTimeout(r, 300));
-  check("asking for another match brings the settings back", await settingsShown());
   const backToPlay = await page.$eval("[data-status]", (el) =>
     el.textContent.trim().toLowerCase(),
   );
