@@ -1,0 +1,103 @@
+# PLAN
+
+What is built, what is next, and the questions that are still open. Read `CLAUDE.md` first
+for the rules this works under.
+
+## Built
+
+- **The simulation.** Two capsules on a plane, Coulomb friction against the desk, one
+  contact between them with restitution and friction, and an out-of-bounds test on the centre
+  of mass. Deterministic, pure, and covered by tests for symmetry under swapping the players,
+  exact rest, no energy gain, and a slide distance checked against the friction constant.
+- **Match rules.** Alternating flicks, three endings, and a refusal for a flick played out of
+  turn, after the match is decided, at the wrong edge, or too softly to count.
+- **The arena.** A canvas drawing the desk as a slab and each pen as a shaded capsule with a
+  grip and a tip, playing a shot back at sixty frames a second. Follows the system theme.
+- **Input.** Take hold of your pen, pull away from where you want it to go, release. A
+  catapult, not a swipe. Power comes from the pull length and is capped. The indicator is an
+  arrow along the launch plus a quiet wake along the drag, so the hand and the shot each get
+  their own half of it. Neither half predicts where the pen will stop.
+- **Any direction is playable.** Including straight at your own edge, which loses. There is a
+  floor on launch speed, so nobody can pass by flicking nothing, and the arrow appears at exactly
+  that floor: anything the player can see, they can play.
+- **Where you grab decides the spin.** Any part of the pen can be taken hold of, and that point
+  is the offset the flick is applied at. Through the middle it goes straight, near a tip it
+  tumbles. Pushing off centre costs speed, so the middle is where the distance is and the ends
+  are where the spin is.
+- **Hotseat, and a bot.** Two players on one screen, or one of three bots. The bot samples
+  candidate flicks, rolls each out to rest and keeps the best. Three milliseconds at the hardest
+  level, and deterministic, so a bot match stays replayable from its shot list alone.
+- **Six pens to choose from,** previewed as a tip and a short run of barrel. Models differ in
+  markings only, never in size or mass, so the choice is cosmetic and both players keep identical
+  physics. Taking the opponent's model moves them off it.
+- **Whose turn it is shows on the pen.** A very faint bloom in the pen's own colour, under the pen
+  rather than on it.
+- **It plays on a phone.** The picture turns a quarter turn on a tall screen while the simulation
+  stays exactly as it was, touch targets have a floor in pixels, and the footer stacks. Checked at a
+  phone viewport in `pnpm verify`, including that a pen can be taken hold of and flicked there.
+- **The settings only appear before a match.** They go away on the first flick and stay away on a
+  result, which offers one thing: another match. That brings them back.
+- **The footer is organised.** Match state on its own line, settings below it in an aligned
+  label-and-control grid.
+- **A win is celebrated.** A short burst of slivers in the winner's colours, from the middle of
+  the desk. It clears itself.
+- **Rooms.** Play a friend over a four-character code. A room stores who flicked first and the
+  flicks, so a whole match is a few hundred bytes and both sides rebuild the board by replaying it.
+  The server validates every flick with the same rules the browser runs, the seat token decides whose
+  pen moves, and every write carries the version it was made against. Polled rather than pushed,
+  because a route handler cannot take over a connection, and the shot animation covers the round
+  trip. Five rooms globally, a lease that measures silence, and a rate limit per caller.
+- **The gates.** `pnpm check` for lint, types, tests and build. `pnpm verify` drives the built app in
+  Chrome and asserts forty-odd things a unit test cannot see, at a desktop and a phone viewport.
+
+## Next, in order
+
+1. **Sound.** Three clips: the flick, pen against pen, and a pen going off. Turn-based play
+   with a one to two second resolution is the best possible case for audio carrying weight,
+   and the collision already knows its own impulse, so the hit can be scaled by how hard it
+   was.
+
+2. **Replay in a link.** The strongest idea left. The simulation is deterministic
+   and a shot is four numbers, so a whole match is a handful of bytes: the side that started
+   plus a list of shots. A shared link replays the actual match rather than showing a picture
+   of the end of it. Quantise each shot on the way in so the encoded form is the shot, and the
+   sender and the receiver cannot round differently.
+
+## Open questions
+
+- **Whether the three bots are spaced right.** Easy, medium and hard differ in how many shots
+  they consider and how badly their hand slips. The slip numbers were picked, not measured, and
+  nobody has yet lost to hard often enough to say whether it is hard.
+- **Whether one-shotting should be reachable at all.** Top speed is set so a full opening flick stays
+  on the desk, which leaves it pushing the other pen about 4.5cm of the 11 it needs. The opening is
+  therefore always about position. That may be exactly right, or it may make the first two flicks
+  feel like a formality.
+- **Whether a room should animate your own flick before the server confirms it.** It does not today:
+  a flick is posted, and it plays out when it comes back in the shot list. That costs one round trip
+  before your own pen starts moving, which against a one to two second animation is a few hundred
+  milliseconds. Showing it immediately and correcting on refusal is the better feel and the harder
+  thing to get right, and the tools for it are there: the client can validate a flick with the same
+  `applyShot` the server runs, so the only refusal it should ever see is a version conflict.
+- **Whether the offset trade is tuned right.** Holding the push's energy constant makes a tip
+  flick worth about half the distance of a centre one. That ratio falls out of the pen's mass and
+  inertia rather than being chosen, and it decides how often a player gives up distance for spin.
+  It has not been played enough to know.
+- **A stalemate rule.** Two cautious players can flick forever. There is a shot counter on the
+  match and no cap on it. A cap needs an ending that does not feel arbitrary.
+- **Both pens off.** Currently a loss for whoever took the shot, on the grounds that they
+  chose the power. A draw is the other defensible reading.
+- **Whether the arena should shrink.** The desk is 40 by 28 centimetres with the pens 18 apart
+  and 11 behind each. It leaves a visible empty middle. That gap is also what makes the
+  opening shot a real judgement, so it should not be closed on the strength of a screenshot.
+  Decide it by playing.
+- **Restitution.** 0.35 gives the struck pen about four times the slide of the pen that hit
+  it, which makes a clean knock-off comfortably achievable without following your own pen off.
+  It has not been checked against a real pen on a real desk.
+
+## Deliberate omissions
+
+- No physics engine and no 3D renderer. `CLAUDE.md` says why.
+- No accounts, no leaderboard, no tournament. A leaderboard is a different product from a
+  single quiet screen, and it is worth being clear which one this is before anything is built
+  towards it.
+- No trajectory prediction in the aim guide, ever. Judging the shot is the game.
