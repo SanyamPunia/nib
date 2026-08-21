@@ -1,8 +1,8 @@
 # nib
 
 A very small pen fight game. Two pens on a desk, a flick each in turn, and you lose when your pen
-goes off the edge. Against a bot at three difficulties, a friend on the same screen, or a friend on
-another one over a four-character code.
+goes off the edge. Against a bot at three difficulties, or a friend on the same
+screen.
 
 The whole product is a single screen. The camera looks straight down, so a pen reads as a round
 object through the shading across its own short axis and the shadow underneath it, and the desk is
@@ -19,10 +19,8 @@ pnpm dev
 browser and asserts against the live canvas, at a desktop and a phone viewport. Run it after
 `pnpm build`.
 
-Rooms need a Redis, set as `REDIS_URL`, and a namespace, set as `REDIS_PREFIX`. Without the URL
-everything else still works and the room controls say rooms are unavailable. The prefix has no
-default and a missing one refuses to start, because every key the store writes is scoped by it and
-so is the only thing it ever deletes in bulk.
+There is no configuration and there are no environment variables. The whole game runs in the
+browser.
 
 ## What is in here
 
@@ -53,13 +51,6 @@ Everything the game needs is written in this repository.
   a shadow under it. The desk has a grain built from one noise tile generated from a fixed seed, so
   it is the same on every machine and does not reshuffle when the window resizes. On a tall screen
   the whole picture turns a quarter turn and the simulation never hears about it.
-- **The rooms.** Seven route handlers and a Redis. A room stores who flicked first and the flicks, so
-  a whole match is a few hundred bytes and both sides rebuild the board by replaying it. The server
-  validates every flick with the same rules the browser runs, the seat token decides whose pen moves
-  rather than anything in the flick itself, and every write carries the version it was made against.
-  Every rule sits in one pure module that knows about neither HTTP nor Redis, so the races that
-  matter are tested in milliseconds against an in-memory store and then re-tested unchanged against
-  the live one.
 
 Two dependencies were considered and measured away: a physics engine, which brings a broadphase and
 an island solver for a problem with one pair of bodies and none of it written to be reproducible
@@ -70,13 +61,11 @@ a picture that is deliberately flat.
 
 ```
 app/                layout, page, globals.css with every colour token
-app/api/rooms/      the room API, a handful of lines per route
 components/game/    the one feature: the arena, the match, the controls
 components/ui/      the button primitive
 lib/sim/            the simulation. Pure, no React, no colour
 lib/match/          turns, legal flicks, and what ends a match
 lib/bot/            the opponent. Pure, no React
-lib/room/           every rule a room has, plus the wire types both sides import
 lib/draw/           canvas drawing, and the desk-to-pixels mapping
 lib/pens.ts         the pen catalogue
 scripts/verify.mjs  drives the built app in Chrome and asserts against the canvas

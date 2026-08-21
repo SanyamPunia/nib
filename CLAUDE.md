@@ -329,14 +329,11 @@ that file more than any other mistake.
 
 ```
 app/                    layout, page, globals.css, icon.svg
-app/api/rooms/          the room API. A route file reads a body and calls one handler
 components/
   game/                 the one feature
     arena.tsx           the canvas, its pointer handling and its playback loop
     game.tsx            one match, and the only React state in the project
     pen-picker.tsx      the catalogue, previewed through the arena's own barrel drawing
-    room-controls.tsx   make a room or join one, and what each refusal says
-    use-room.ts         the polling client. One hook, no fetching in components
   ui/button.tsx         the button primitive
 lib/
   sim/                  the simulation. Pure, no React, no colour
@@ -353,16 +350,6 @@ lib/
   bot/                  the opponent. Pure, no React
     levels.ts           the three difficulties
     choose.ts           draw candidate flicks, roll them out, keep the best
-  room/                 every rule a room has, plus the wire types both sides import
-    protocol.ts         the contract between two things that deploy separately
-    limits.ts           the cap, the lease and the rate limit, in one place
-    key.ts              room codes and seat tokens
-    store.ts            what a room needs from storage, and nothing more
-    memory-store.ts     the store the rules are tested against
-    redis-store.ts      the real one. The prefix is required and has no default
-    service.ts          every rule. Knows about neither HTTP nor Redis
-    handlers.ts         the API. Covered with no server booted
-    api-route.ts        the adapter a route file calls
   draw/                 canvas drawing. No React
     colors.ts           the palette, read off the page
     grain.ts            the desk's texture, one noise tile built once
@@ -577,49 +564,34 @@ is on its own control for anyone who needs it read out.
 **A selected chip or preview is marked by its background, not by a border.** A row of bordered boxes
 reads as a row of things all equally selected, which is the opposite of what a selection is for.
 
-## Rooms
+## There is no online play, and it is not an oversight
 
-Play a friend over a code. Five things about it are load-bearing.
+It was built end to end and removed: seven route handlers, a Redis store behind a required key
+prefix, a shot-list-as-match record, seat tokens, version compare-and-set, a global room cap, a
+lease that measured silence, and a per-caller rate limit. All of it worked. It came out because of
+one thing that none of it could fix.
 
-**1. A room is a shot list, not a board.** It stores who flicked first and the flicks, and anything
-that wants a position replays them. That is only possible because the simulation is deterministic,
-and it is the second time that property has paid for itself. A record stays a few hundred bytes
-however long the match runs, and there is one source of truth: a stored board could disagree with
-the shots that produced it, and the disagreement would show up as a pen in the wrong place on one
-player's screen only.
+**A room had to be polled.** A route handler is `(Request) => Response`, and that signature cannot
+express taking over a connection, so there was no socket to be had. The opponent's flick therefore
+arrived a poll interval after the round trip that stored it.
 
-**2. `REDIS_PREFIX` is required and has no default.** Every key the store writes begins with it, and
-the one destructive call in the project deletes everything that begins with it. A default would mean
-a deployment with the variable missing writes into, and can erase, whichever namespace that default
-happened to name. So a missing prefix refuses to construct. A crash at boot is the cheapest possible
-version of that mistake, and the trailing colon is insisted on so one prefix cannot be a prefix of
-another. `clear()` has to be told which prefix it is wiping and refuses if that is not the one it
-holds, which means erasing another application's data takes actively naming that application.
+**Making your own flick optimistic fixed half of the problem and proved the other half.** The shot
+was appended to the list locally and animated from there, which is safe here because the simulation
+is deterministic: canonicalise the four numbers first and the server replays the identical flick.
+Measured with the request deliberately held for 1.5 seconds, the first frame moved from 1675ms after
+release to 42ms. The other screen still waited over two seconds, and it always would have. For a
+game whose whole loop is one flick and a second of animation, that is the wrong feel.
 
-**3. The server decides, and it decides with the same code the browser runs.** A shot is put into
-canonical form before anything looks at it, and the canonical form is what gets stored: whatever
-arrived is a suggestion and can be `NaN` or a hundred times the top speed. The seat token decides
-whose pen moves, never the `side` field in the shot. Every write carries the version it was made
-against, and one made against a version the room has passed is refused rather than applied to a board
-the sender never saw. The client answers a refusal by re-reading, never by retrying.
+Two things are worth keeping from it, because they are the parts that would be rebuilt:
 
-**4. Rooms are polled, not pushed.** A route handler is `(Request) => Response`, and that signature
-cannot express taking over a connection, so there is no socket to be had. The cost is that a flick
-can take a poll interval to appear, and that cost is much smaller here than in a board game because
-a flick takes a second or two to play out and the animation covers the round trip. The interval is
-both the latency of the whole feature and its request rate, which is why it changes with what is
-being waited for and stops while the tab is hidden.
+- **A match is a shot list, not a board.** `newMatch` plus `applyShot` per flick is all a position
+  ever needs, because the simulation is deterministic. That is why a `replay()` helper existed and
+  why rebuilding one is a few lines rather than a design.
+- **Determinism is what makes any of it possible.** It paid for fair physics, then a replayable bot,
+  then this. Anything that reintroduces a transcendental into the step loop takes all three away.
 
-**5. Giving up is the one ending the simulation cannot work out.** It can look at any arrangement of
-pens and say whether one is off the desk, and no arrangement says somebody decided they had lost. So
-it lives on the room record beside the shot list, never inside it.
-
-The cap is five rooms globally, which is what stops a link somewhere busy turning into a bill. It is
-also the only way the feature can be taken from everybody at once, so a lease measures silence rather
-than age and one caller may open only a few rooms an hour.
-
-Without `REDIS_URL` the API answers 503 and says so. The desk, the bot and the whole single-screen
-product need no backend at all.
+If online play returns, it returns on a connection that can push. Do not rebuild it on polling: the
+number above is what that costs, and it was measured rather than guessed.
 
 ## Tests run under strip-only TypeScript
 
@@ -648,11 +620,11 @@ anywhere the tests can reach. A constructor writes its own field assignments.
 ## Dependency rule
 
 The simulation, the collision geometry, the renderer, the bot and the match rules are written here.
-There are six runtime dependencies: Next, React, `clsx`, `tailwind-merge`, `lucide-react`, and
-`ioredis`, which only the room store imports. Adding a seventh needs a reason in this table.
+There are five runtime dependencies: Next, React, `clsx`, `tailwind-merge` and `lucide-react`.
+Adding a sixth needs a reason in this table.
 
-`ioredis` earns its place by speaking Redis over a plain socket, so the connection string is the only
-credential the feature needs and there is no second API to keep in step with the first.
+The project reads no environment variable and holds no credential. It was not always so: online play
+brought `ioredis` and a connection string, and both left with it.
 
 Two things this project will be asked for and should not take:
 

@@ -41,12 +41,6 @@ for the rules this works under.
   label-and-control grid.
 - **A win is celebrated.** A short burst of slivers in the winner's colours, from the middle of
   the desk. It clears itself.
-- **Rooms.** Play a friend over a four-character code. A room stores who flicked first and the
-  flicks, so a whole match is a few hundred bytes and both sides rebuild the board by replaying it.
-  The server validates every flick with the same rules the browser runs, the seat token decides whose
-  pen moves, and every write carries the version it was made against. Polled rather than pushed,
-  because a route handler cannot take over a connection, and the shot animation covers the round
-  trip. Five rooms globally, a lease that measures silence, and a rate limit per caller.
 - **The gates.** `pnpm check` for lint, types, tests and build. `pnpm verify` drives the built app in
   Chrome and asserts forty-odd things a unit test cannot see, at a desktop and a phone viewport.
 
@@ -72,12 +66,6 @@ for the rules this works under.
   on the desk, which leaves it pushing the other pen about 4.5cm of the 11 it needs. The opening is
   therefore always about position. That may be exactly right, or it may make the first two flicks
   feel like a formality.
-- **Whether a room should animate your own flick before the server confirms it.** It does not today:
-  a flick is posted, and it plays out when it comes back in the shot list. That costs one round trip
-  before your own pen starts moving, which against a one to two second animation is a few hundred
-  milliseconds. Showing it immediately and correcting on refusal is the better feel and the harder
-  thing to get right, and the tools for it are there: the client can validate a flick with the same
-  `applyShot` the server runs, so the only refusal it should ever see is a version conflict.
 - **Whether the offset trade is tuned right.** Holding the push's energy constant makes a tip
   flick worth about half the distance of a centre one. That ratio falls out of the pen's mass and
   inertia rather than being chosen, and it decides how often a player gives up distance for spin.
@@ -101,3 +89,11 @@ for the rules this works under.
   single quiet screen, and it is worth being clear which one this is before anything is built
   towards it.
 - No trajectory prediction in the aim guide, ever. Judging the shot is the game.
+- **No online play.** It was built end to end, over a four-character code and a Redis, and then
+  removed. Rooms had to be polled, because a route handler is `(Request) => Response` and that
+  signature cannot take over a connection, so the opponent's flick arrived a poll interval after the
+  round trip that stored it. Making your own flick optimistic fixed half of it and was measured: the
+  first frame moved from 1675ms after release to 42ms with the request held for 1.5 seconds. The
+  other screen still waited over two seconds, and no interval short enough to fix that is one this
+  can afford to poll at. For a game whose whole loop is a single flick, that is the wrong feel. If it
+  returns it returns on a connection that can push.
