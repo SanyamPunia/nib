@@ -37,27 +37,6 @@ export function newMatch(first: Side = "a"): Match {
   return { world: setup(), turn: first, result: null, shots: 0 };
 }
 
-/**
- * Rebuild a match from the side that started and the flicks that were played.
- *
- * This is what makes a whole match a handful of numbers. Nothing stores a board, because the
- * simulation is deterministic and a board is always derivable from the shots that made it. A stored
- * board could disagree with its own shot list, and the disagreement would show up as a pen in the
- * wrong place on one screen only.
- *
- * A refused flick stops the replay rather than being skipped. Skipping one would quietly produce a
- * different match from the one that was played, which is worse than refusing to show it at all.
- */
-export function replay(first: Side, shots: readonly Shot[]): Match | null {
-  let match = newMatch(first);
-  for (const shot of shots) {
-    const applied = applyShot(match, shot);
-    if (!applied.ok) return null;
-    match = applied.match;
-  }
-  return match;
-}
-
 export type Rejection = "match-over" | "not-your-turn" | "too-soft";
 
 export type Applied =

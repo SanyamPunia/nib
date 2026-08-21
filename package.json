@@ -10,13 +10,12 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "test": "node --env-file-if-exists=.env.local --test --experimental-strip-types \"lib/**/*.test.ts\"",
+    "test": "node --test --experimental-strip-types \"lib/**/*.test.ts\"",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "verify": "node --experimental-strip-types scripts/verify.mjs"
   },
   "dependencies": {
     "clsx": "^2.1.1",
-    "ioredis": "^6.0.0",
     "lucide-react": "^1.31.0",
     "next": "16.3.0",
     "react": "19.2.8",
