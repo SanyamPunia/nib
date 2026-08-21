@@ -10,7 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
     "format": "biome check --write .",
-    "test": "node --test --experimental-strip-types \"lib/**/*.test.ts\"",
+    "test": "node --env-file-if-exists=.env.local --test --experimental-strip-types \"lib/**/*.test.ts\"",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm build",
     "verify": "node --experimental-strip-types scripts/verify.mjs"
   },
