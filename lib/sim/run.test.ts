@@ -7,6 +7,7 @@ import {
   LINEAR_DECEL,
   MAX_LAUNCH_SPEED,
   MAX_STEPS,
+  MIN_LAUNCH_SPEED,
   PEN_DIAMETER,
   PEN_LENGTH,
   START_OFFSET,
@@ -133,6 +134,56 @@ test("a full-power opening flick does not knock the other pen off on its own", (
   const r = runShot(setup(), shot({ side: "a", vx: MAX_LAUNCH_SPEED }));
   assert.equal(r.rest.b.out, false, `b was knocked to ${r.rest.b.x.toFixed(2)}`);
   assert.ok(r.rest.b.x > START_OFFSET, "b was not moved at all");
+});
+
+test("no opening flick of any kind wins on the spot", () => {
+  /*
+   * The settled answer to whether one-shotting should be reachable. It is not, and that is now
+   * held by a sweep rather than by one shot, because "this particular flick does not win" says
+   * nothing about the flick next to it.
+   *
+   * Every legal first move is tried: each offset along the pen, each speed that offset allows, and
+   * every heading in the half of the compass facing the other pen. The other half is left out
+   * because a flick with no component towards a pen 18cm away cannot arrive at it, and there are
+   * 11cm of desk behind, so that half is a sweep of ways to lose rather than ways to win.
+   *
+   * The margin is asserted as well as the result. Measured across 4368 flicks, the closest any
+   * opening move pushes the other pen to an edge is 7.5cm, so this is nowhere near a near miss,
+   * and 5cm of headroom is enough to catch a retune long before it makes the game one flick long.
+   */
+  const half = PEN_LENGTH / 2;
+  let closest = Number.POSITIVE_INFINITY;
+
+  for (let degrees = -90; degrees <= 90; degrees += 2) {
+    const heading = (degrees * Math.PI) / 180;
+    for (let offset = -half; offset <= half; offset += 2) {
+      const top = maxSpeedAt(offset);
+      for (let part = 0; part <= 5; part++) {
+        const speed = MIN_LAUNCH_SPEED + ((top - MIN_LAUNCH_SPEED) * part) / 5;
+        const where = `${degrees} degrees, offset ${offset}, speed ${speed.toFixed(0)}`;
+        const rest = resolve(
+          setup(),
+          shot({
+            side: "a",
+            vx: speed * Math.cos(heading),
+            vy: speed * Math.sin(heading),
+            offset,
+          }),
+        );
+        assert.equal(rest.b.out, false, `an opening flick won outright at ${where}`);
+        closest = Math.min(
+          closest,
+          ARENA_WIDTH / 2 - Math.abs(rest.b.x),
+          ARENA_HEIGHT / 2 - Math.abs(rest.b.y),
+        );
+      }
+    }
+  }
+
+  assert.ok(
+    closest > 5,
+    `an opening flick pushed the other pen to ${closest.toFixed(2)}cm of an edge`,
+  );
 });
 
 test("full power sideways leaves the desk, because the sides are nearer than the opponent", () => {

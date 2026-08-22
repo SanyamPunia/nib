@@ -109,6 +109,12 @@ of reach, and that is what makes the first few flicks about position rather than
 Three tests in `run.test.ts` hold all of it. Anything that raises the top speed, lowers desk friction
 or moves the pens has to be checked against them.
 
+**One-shotting is out of reach, and that is decided rather than observed.** A fourth test sweeps
+every legal opening flick, which is each offset along the pen at each speed that offset allows,
+across the half of the compass facing the other pen. None of the 4368 wins, and the closest any of
+them pushes the other pen to an edge is 7.5cm. The margin is asserted as well as the result, so a
+retune has to get a long way wrong before the game becomes one flick long.
+
 ## The arena has no walls
 
 A pen is out when its **centre of mass** leaves the arena, which is the condition under which

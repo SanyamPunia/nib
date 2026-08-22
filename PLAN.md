@@ -90,6 +90,9 @@ for the rules this works under.
 
 ## Settled
 
+- **One-shotting from the opening stays out of reach.** It is not reachable today and it is not
+  meant to become reachable, so a sweep of every legal opening flick holds it: none of the 4368
+  wins, and the nearest miss leaves the other pen 7.5cm from an edge. The opening is about position.
 - **Both pens off is a draw,** not a loss for whoever took the shot. See `CLAUDE.md`.
 
 ## Deliberate omissions
