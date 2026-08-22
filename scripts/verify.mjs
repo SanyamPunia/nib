@@ -533,6 +533,17 @@ try {
      */
     window.__sources = [];
     window.__gainNodes = [];
+    /*
+     * The buzz is felt, not heard, so the only thing observable from here is that it was asked
+     * for. Chrome has `vibrate` and no motor behind it, which is exactly the case the code has to
+     * survive, and it is enough to prove the collision reached it.
+     */
+    window.__buzzes = [];
+    const vibrated = navigator.vibrate.bind(navigator);
+    navigator.vibrate = (pattern) => {
+      window.__buzzes.push(pattern);
+      return vibrated(pattern);
+    };
     const startedAt = AudioBufferSourceNode.prototype.start;
     AudioBufferSourceNode.prototype.start = function patched(...args) {
       window.__sources.push(this);
@@ -571,6 +582,7 @@ try {
     knocks: window.__sources?.length ?? 0,
     gains: (window.__gainNodes ?? []).map((n) => n.gain.value),
     rates: (window.__sources ?? []).map((n) => n.playbackRate.value),
+    buzzes: window.__buzzes ?? [],
   }));
   check("a collision is heard", heard.knocks > 0, `${heard.knocks} knock(s) played`);
   check(
@@ -583,6 +595,13 @@ try {
     "the knock is detuned rather than played twice the same",
     heard.rates.length > 0 && heard.rates.every((v) => v !== 1 && v > 0.9 && v < 1.1),
     heard.rates.map((v) => v.toFixed(3)).join(", "),
+  );
+
+  /* A collision is felt as well as heard, for as long as it was hard. */
+  check(
+    "a collision buzzes the phone as well",
+    heard.buzzes.length > 0 && heard.buzzes.every((ms) => ms >= 8 && ms <= 26),
+    heard.buzzes.join(", ") || "nothing asked for a buzz",
   );
 
   /*
@@ -625,11 +644,17 @@ try {
   await page.evaluate(() => {
     window.__sources = [];
     const startedAt = AudioBufferSourceNode.prototype.start;
+    window.__buzzes = [];
     AudioBufferSourceNode.prototype.start = function patched(...args) {
       window.__sources.push(this);
       return startedAt.apply(this, args);
     };
     const el = [...document.querySelectorAll("button")].find(
+    const vibrated = navigator.vibrate.bind(navigator);
+    navigator.vibrate = (pattern) => {
+      window.__buzzes.push(pattern);
+      return vibrated(pattern);
+    };
       (b) => b.getAttribute("aria-pressed") !== null,
     );
     if (el instanceof HTMLElement) el.click();
@@ -643,8 +668,21 @@ try {
   );
 
   await flickHard();
-  const whileMuted = await page.evaluate(() => window.__sources?.length ?? 0);
-  check("a muted collision makes no sound at all", whileMuted === 0, `${whileMuted} sound(s)`);
+  const whileMuted = await page.evaluate(() => ({
+    sounds: window.__sources?.length ?? 0,
+    /* Muting asks for a zero-length buzz to cut one that is mid-pulse, and that is not a buzz. */
+    buzzes: (window.__buzzes ?? []).filter((ms) => ms > 0),
+  }));
+  check(
+    "a muted collision makes no sound at all",
+    whileMuted.sounds === 0,
+    `${whileMuted.sounds}`,
+  );
+  check(
+    "and does not buzz either",
+    whileMuted.buzzes.length === 0,
+    whileMuted.buzzes.join(", "),
+  );
 
   /* And the choice outlives the page, or it would have to be made again every match. */
   await page.reload({ waitUntil: "networkidle0" });

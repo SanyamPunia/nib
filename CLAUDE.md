@@ -706,6 +706,15 @@ played again.
 a match is few enough to notice, and the detune is what makes the same clip twice sound like two
 collisions. `verify.mjs` asserts the rate is never exactly 1.
 
+**A collision is felt as well as heard.** `navigator.vibrate` gets a pulse between 8 and 26
+milliseconds, off the same strength that sets the volume, from inside `playKnock` itself. It lives
+in the sound module and answers to the same switch, because somebody who silences the game means
+stop doing things at me rather than stop making noise specifically, and one flag with one call site
+is one thing to get wrong instead of two. It comes before the audio and does not depend on it, so a
+phone that could not build an `AudioContext`, or is sitting on its silent switch, still gets told
+the pens met. Nothing sniffs what kind of device this is: the method being there is the only honest
+test, and iOS Safari not having it at all is a case the code has to survive rather than detect.
+
 **It fails silently, everywhere.** No Web Audio, a clip that will not fetch, a context the platform
 refuses to start: every one of them is caught and dropped. Sound is the last thing in this product
 that should be able to break a loop that is drawing the game.

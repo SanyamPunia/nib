@@ -1,5 +1,10 @@
 /**
- * Every noise the game makes: pens meeting, and winning.
+ * Every noise the game makes, and the one thing it does that is felt rather than heard.
+ *
+ * Pens meeting, winning, and a short buzz on a phone when the pens meet. The buzz lives here
+ * rather than in a module of its own because it has to answer to the same switch: somebody who
+ * silences the game means stop doing things at me, not stop making noise specifically. One flag,
+ * one call site, one thing to get wrong.
  *
  * One `AudioContext` for both, because a page needs only one and a second would be a second thing
  * to unlock. Everything here fails silently on purpose. A browser with no Web Audio, a file that
@@ -61,6 +66,16 @@ const LOUDNESS_CURVE = 0.6;
  * varied.
  */
 const DETUNE = 0.06;
+
+/**
+ * Length of the buzz, in milliseconds, for the softest and the hardest hit.
+ *
+ * Both are short. A phone's motor takes a few milliseconds to spin up and a few more to stop, so
+ * anything under about eight is felt as nothing, and anything over about thirty stops reading as
+ * an impact and starts reading as a notification.
+ */
+const BUZZ_MIN_MS = 8;
+const BUZZ_MAX_MS = 26;
 
 /** Where the choice to silence the game is kept, so it survives a reload. */
 const MUTE_STORE = "nib:muted";
@@ -184,14 +199,38 @@ function pick(ready: number[]): number {
 }
 
 /**
- * Play one knock, as hard as it was hit.
+ * Buzz the phone, for as long as the hit was hard.
+ *
+ * Fails silently like everything else here, and on most machines it does nothing at all: iOS
+ * Safari has no `vibrate` at all, and a desktop that has the method has no motor behind it. Both
+ * of those are fine. Nothing checks what kind of device this is, because the presence of the
+ * method is the only honest test available and a user agent string is not one.
+ */
+function buzz(level: number): void {
+  if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") return;
+  try {
+    navigator.vibrate(Math.round(BUZZ_MIN_MS + (BUZZ_MAX_MS - BUZZ_MIN_MS) * level));
+  } catch {
+    /* A buzz nobody felt is not worth an exception. */
+  }
+}
+
+/**
+ * Play one knock, as hard as it was hit, and buzz for as long.
  *
  * `strength` is the sim's own 0 to 1 measure, straight out of `ShotResult.impacts`. Nothing here
- * decides how hard a collision was, only how loud that should be.
+ * decides how hard a collision was, only how loud and how long that should be.
+ *
+ * The buzz comes before the audio and does not depend on it. A phone that could not build an
+ * `AudioContext`, or is sitting on a silent switch, can still be told the pens met.
  */
 export function playKnock(strength: number): void {
+  if (muted) return;
+  const level = Math.min(Math.max(strength, 0) / LOUD_AT, 1) ** LOUDNESS_CURVE;
+  buzz(level);
+
   const active = kit;
-  if (muted || !active) return;
+  if (!active) return;
 
   const ready: number[] = [];
   for (let i = 0; i < KNOCKS; i++) if (active.knocks[i]) ready.push(i);
@@ -202,7 +241,6 @@ export function playKnock(strength: number): void {
   if (!buffer) return;
   lastKnock = index;
 
-  const level = Math.min(Math.max(strength, 0) / LOUD_AT, 1) ** LOUDNESS_CURVE;
   fire(
     active,
     buffer,
@@ -255,6 +293,14 @@ function stopWin(): void {
  */
 export function muteSounds(next: boolean): void {
   muted = next;
+  /* Cut a buzz that is mid-pulse, for the same reason a win that is mid-play is stopped. */
+  if (next && typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+    try {
+      navigator.vibrate(0);
+    } catch {
+      /* Nothing to stop. */
+    }
+  }
   try {
     localStorage.setItem(MUTE_STORE, next ? "1" : "0");
   } catch {

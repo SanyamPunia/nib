@@ -52,6 +52,8 @@ for the rules this works under.
   and it plays once per win however many times the window is resized under it.
 - **Both pens off is a draw.** One flick can take both, and there is nobody on the desk at the end
   of it to call the winner. It is not celebrated, since a burst and a jingle belong to somebody.
+- **A collision is felt as well as heard.** A short buzz on a phone, off the same strength that
+  sets the volume and behind the same switch.
 - **The setup is remembered.** The opponent and both pens survive a reload, beside the mute.
 - **The gates.** `pnpm check` for lint, types, tests and build. `pnpm verify` drives the built app in
   Chrome and asserts forty-odd things a unit test cannot see, at a desktop and a phone viewport.
