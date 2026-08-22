@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="7.4 8.2 16.6 16.6" fill="none">
+  <title>nib</title>
+  <!-- One colour, taken from whatever it is placed in. No background: the ink is all there is. -->
+  <path d="M9 23.2 L20.4 11.8" stroke="currentColor" stroke-width="3.2" stroke-linecap="round"/>
+  <path d="M20.6 11.6 L24 8.2 L24 12.8 L20.6 16.2 Z" fill="currentColor"/>
+</svg>
