@@ -298,7 +298,17 @@ export function Arena({
   useEffect(() => {
     const move = (event: PointerEvent) =>
       applyMove(event.pointerId, event.clientX, event.clientY, event.buttons);
-    const finish = () => endDrag(true);
+    /*
+     * The release primes as well as the press. Both are gestures a browser will unlock audio for,
+     * and which ones count is not the same everywhere: WebKit is stricter than Chrome about what
+     * it will accept, and priming from one gesture only is a single point of failure for every
+     * sound in the game. The release is still a second or so ahead of the earliest collision it
+     * could be needed for, and priming twice costs a `resume` on a context that is already running.
+     */
+    const finish = () => {
+      primeSounds();
+      endDrag(true);
+    };
     const cancel = () => endDrag(false);
     const blurred = () => endDrag(false);
     window.addEventListener("pointermove", move);

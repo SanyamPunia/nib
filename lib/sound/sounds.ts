@@ -7,7 +7,15 @@
  * one call site, one thing to get wrong.
  *
  * One `AudioContext` for both, because a page needs only one and a second would be a second thing
- * to unlock. Everything here fails silently on purpose. A browser with no Web Audio, a file that
+ * to unlock.
+ *
+ * **On an iPhone, two things here are the platform's call and not this module's.** The ringer switch
+ * silences Web Audio, and that is left alone on purpose: claiming the `playback` audio session would
+ * make the game audible on silent, at the price of interrupting whatever the person was already
+ * listening to. A pen game does not get to stop somebody's podcast. And WebKit has never shipped the
+ * Vibration API, so `navigator.vibrate` is undefined in every browser on iOS, all of which are
+ * WebKit. There is no web-exposed haptic to fall back to. Both are why the checks below are for the
+ * method being there rather than for what kind of device this is. Everything here fails silently on purpose. A browser with no Web Audio, a file that
  * will not fetch, a context the platform refuses to start: none of them may throw into a playback
  * loop that is drawing the game. Sound is the last thing in this product that should be able to
  * break it.
@@ -231,6 +239,12 @@ export function playKnock(strength: number): void {
 
   const active = kit;
   if (!active) return;
+  /*
+   * A context can be running one minute and suspended the next: iOS interrupts one for a phone
+   * call, and every browser suspends one on a backgrounded tab. Nudging it here costs nothing when
+   * it is already running, and is the difference between a knock and silence when it is not.
+   */
+  if (active.ctx.state !== "running") void active.ctx.resume().catch(() => {});
 
   const ready: number[] = [];
   for (let i = 0; i < KNOCKS; i++) if (active.knocks[i]) ready.push(i);

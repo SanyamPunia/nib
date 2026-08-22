@@ -745,6 +745,19 @@ phone that could not build an `AudioContext`, or is sitting on its silent switch
 the pens met. Nothing sniffs what kind of device this is: the method being there is the only honest
 test, and iOS Safari not having it at all is a case the code has to survive rather than detect.
 
+**On an iPhone, two things about this are the platform's and not ours.** The ringer switch silences
+Web Audio, and that is left alone deliberately: claiming the `playback` audio session would make the
+game audible on silent, at the price of interrupting whatever the person was already listening to,
+and a pen game does not get to stop somebody's podcast. Sound on iOS therefore means the ringer
+switch is off silent. And WebKit has never shipped the Vibration API, so `navigator.vibrate` is
+undefined in every browser on iOS, all of which are WebKit underneath. There is no web-exposed
+haptic there to fall back on, which is why the buzz checks for the method rather than for a device.
+
+**Both the press and the release prime.** Which gestures a browser will unlock audio for is not the
+same everywhere and WebKit is stricter than Chrome, so priming from one gesture is a single point of
+failure for every sound in the game. The release is still a second or so ahead of the earliest
+collision it could be needed for.
+
 **It fails silently, everywhere.** No Web Audio, a clip that will not fetch, a context the platform
 refuses to start: every one of them is caught and dropped. Sound is the last thing in this product
 that should be able to break a loop that is drawing the game.
