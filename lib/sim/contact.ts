@@ -31,6 +31,15 @@ export interface Contact {
  */
 export interface Manifold {
   hit: boolean;
+  /**
+   * Whether the pens were touching on the step before this one.
+   *
+   * One collision spans more than one step, because the overlap it leaves is corrected over
+   * several. Measured across every legal flick, the longest contact in the game is three steps, and
+   * each of them would otherwise report its own impulse. Only the step a contact begins on is a
+   * collision. `collide` does not touch this, `step` sets it.
+   */
+  touching: boolean;
   c: Contact;
 }
 
@@ -39,7 +48,7 @@ function emptyContact(): Contact {
 }
 
 export function createManifold(): Manifold {
-  return { hit: false, c: emptyContact() };
+  return { hit: false, touching: false, c: emptyContact() };
 }
 
 /**

@@ -13,7 +13,7 @@ import {
 } from "./constants.ts";
 import { createManifold } from "./contact.ts";
 import { atRest, cloneWorld, maxSpeedAt, setup } from "./pen.ts";
-import { runShot } from "./run.ts";
+import { resolve, runShot } from "./run.ts";
 import { step } from "./step.ts";
 import type { Frame, Pen, Shot, ShotResult, Side, World } from "./types.ts";
 import { cross, length } from "./vec.ts";
@@ -262,4 +262,92 @@ test("frames run at sixty a second and end where the world came to rest", () => 
   assert.equal(last.a.x, r.rest.a.x);
   assert.equal(last.b.y, r.rest.b.y);
   assert.ok(r.frames.length >= Math.floor(r.steps * DT * 60));
+});
+
+/*
+ * Impacts exist so the sound of a collision can be played on the frame it happened on. They are
+ * reported by the sim rather than worked out in the browser, because the browser only ever sees
+ * poses: two pens a millimetre apart on one frame and touching on the next look identical to
+ * anything watching from outside, and the step that resolved the contact is 480Hz, not 60Hz.
+ */
+
+test("a hit is reported once, on a frame that exists", () => {
+  const result = runShot(setup(), shot({ vx: MAX_LAUNCH_SPEED }));
+  assert.equal(result.impacts.length, 1, "a square hit is one collision");
+  const [hit] = result.impacts;
+  assert.ok(hit);
+  assert.ok(
+    hit.frame >= 0 && hit.frame < result.frames.length,
+    `frame ${hit.frame} is drawable`,
+  );
+  assert.ok(hit.strength > 0 && hit.strength <= 1, `strength ${hit.strength} is a share`);
+});
+
+test("a flick that never reaches the other pen reports nothing", () => {
+  /* Stopping distance is v squared over twice the deceleration, well short of the gap. */
+  const result = runShot(setup(), shot({ vx: MAX_LAUNCH_SPEED / 2 }));
+  assert.equal(result.impacts.length, 0);
+  assert.ok(result.rest.b.x === START_OFFSET, "the other pen never moved");
+});
+
+test("one collision is one impact, across every step it touches for", () => {
+  /*
+   * A collision is not one step. The impulse is applied on the first, and the overlap it leaves is
+   * pushed apart over the next few, so the pens are still touching while that happens. Without the
+   * onset check each of those steps reports its own impulse and one knock is heard three times.
+   *
+   * This is the shot with the longest contact in the game: a near-square hit at a shallow angle,
+   * found by sweeping every legal flick from the opening position.
+   */
+  const w = setup();
+  const m = createManifold();
+  const speed = maxSpeedAt(-0.5) * 0.85;
+  const heading = (-26 * Math.PI) / 180;
+  w.a.vx = speed * Math.cos(heading);
+  w.a.vy = speed * Math.sin(heading);
+
+  let onsets = 0;
+  let touchingSteps = 0;
+  let steps = 0;
+  while (steps < MAX_STEPS && !(atRest(w.a) && atRest(w.b))) {
+    if (step(w, m) > 0) onsets++;
+    if (m.touching) touchingSteps++;
+    steps++;
+  }
+  assert.ok(touchingSteps > 1, `the pens touched across ${touchingSteps} steps`);
+  assert.equal(onsets, 1, "and it is reported as one collision");
+});
+
+test("collecting impacts does not change what a shot does", () => {
+  /*
+   * `resolve` skips both frames and impacts and is what the bot runs a couple of hundred times a
+   * turn. It has to agree with `runShot` exactly, or the bot would be judging positions the game
+   * does not produce.
+   */
+  for (let offset = -PEN_LENGTH / 2; offset <= PEN_LENGTH / 2; offset += 1) {
+    for (const vy of [-60, 0, 60]) {
+      const s = shot({ vx: maxSpeedAt(offset), vy, offset });
+      const withFrames = runShot(setup(), s).rest;
+      const without = resolve(setup(), s);
+      for (const side of ["a", "b"] as const) {
+        assert.deepEqual(
+          without[side],
+          withFrames[side],
+          `pen ${side} after offset ${offset}, vy ${vy}`,
+        );
+      }
+    }
+  }
+});
+
+test("a harder hit is reported as a harder hit", () => {
+  /* Strength is what sets the volume, so it has to rise with the collision it describes. */
+  const soft = runShot(setup(), shot({ vx: MAX_LAUNCH_SPEED * 0.82 })).impacts;
+  const hard = runShot(setup(), shot({ vx: MAX_LAUNCH_SPEED })).impacts;
+  assert.equal(soft.length, 1);
+  assert.equal(hard.length, 1);
+  assert.ok(
+    (hard[0]?.strength ?? 0) > (soft[0]?.strength ?? 0),
+    `${hard[0]?.strength} should exceed ${soft[0]?.strength}`,
+  );
 });

@@ -67,8 +67,11 @@ function integrate(p: Pen): void {
  * exactly, so there is nothing for an iteration to improve. It is also why nothing here
  * depends on the order anything is visited in, which is what keeps the two players'
  * physics identical.
+ *
+ * Returns the normal impulse, which is the momentum the collision moved from one pen to the
+ * other. Zero when the pens are touching but separating, which is not a collision.
  */
-function solveContact(a: Pen, b: Pen, c: Contact): void {
+function solveContact(a: Pen, b: Pen, c: Contact): number {
   const rax = c.px - a.x;
   const ray = c.py - a.y;
   const rbx = c.px - b.x;
@@ -83,7 +86,7 @@ function solveContact(a: Pen, b: Pen, c: Contact): void {
   const rvy = vby - vay;
 
   const vn = dot(rvx, rvy, c.nx, c.ny);
-  if (vn > 0) return;
+  if (vn > 0) return 0;
 
   const invMa = 1 / a.mass;
   const invMb = 1 / b.mass;
@@ -115,6 +118,8 @@ function solveContact(a: Pen, b: Pen, c: Contact): void {
   b.vx += ix * invMb;
   b.vy += iy * invMb;
   b.spin += cross(rbx, rby, ix, iy) * invIb;
+
+  return jn;
 }
 
 /** Push overlapping pens apart, sharing the correction by inverse mass. */
@@ -142,20 +147,31 @@ function correctOverlap(a: Pen, b: Pen, c: Contact): void {
  * Order is load-bearing. The contact is solved before positions move, so a pen never
  * integrates into the one it just hit, and the out-of-bounds test runs last, so a pen that
  * left the arena during this step is not simulated in the next one.
+ *
+ * Returns the normal impulse when the pens started touching on this step, and zero otherwise.
+ * That is the one moment a collision happens: a contact that was already there is a pen leaning
+ * on another, and it can last thousands of steps. The caller decides what to do with it, and
+ * nothing in here knows or cares.
  */
-export function step(w: World, m: Manifold): void {
+export function step(w: World, m: Manifold): number {
   if (!w.a.out) applyFriction(w.a);
   if (!w.b.out) applyFriction(w.b);
 
+  const wasTouching = m.touching;
   collide(w.a, w.b, m);
+  let impulse = 0;
   if (m.hit) {
-    solveContact(w.a, w.b, m.c);
+    const jn = solveContact(w.a, w.b, m.c);
     correctOverlap(w.a, w.b, m.c);
+    if (!wasTouching) impulse = jn;
   }
+  m.touching = m.hit;
 
   if (!w.a.out) integrate(w.a);
   if (!w.b.out) integrate(w.b);
 
   checkOut(w.a);
   checkOut(w.b);
+
+  return impulse;
 }

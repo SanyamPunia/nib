@@ -71,6 +71,20 @@ export interface Frame {
   b: Pose;
 }
 
+/** A pen hitting the other pen, once, at a known point in the animation. */
+export interface Impact {
+  /** Index into `frames`, so a player hears the knock on the frame it is drawn on. */
+  frame: number;
+  /**
+   * How hard, from 0 to 1.
+   *
+   * The normal impulse over the largest momentum a pen can carry, which is its mass times the
+   * top launch speed. Derived rather than picked, so retuning either constant carries through.
+   * A square hit at full speed lands around two thirds, since neither pen absorbs everything.
+   */
+  strength: number;
+}
+
 export interface ShotResult {
   /** Poses at 60 per second, starting after the first step and ending at rest. */
   frames: Frame[];
@@ -78,4 +92,6 @@ export interface ShotResult {
   steps: number;
   /** The world at rest. The authoritative outcome of the shot. */
   rest: World;
+  /** Every pen-on-pen collision in this shot, in the order they happened. */
+  impacts: Impact[];
 }

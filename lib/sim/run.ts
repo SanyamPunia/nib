@@ -1,9 +1,21 @@
-import { FRAME_EVERY, MAX_STEPS } from "./constants.ts";
+import { FRAME_EVERY, MAX_LAUNCH_SPEED, MAX_STEPS, PEN_MASS } from "./constants.ts";
 import { createManifold } from "./contact.ts";
 import { frameOf } from "./frame.ts";
 import { atRest, cloneWorld, launch, pen } from "./pen.ts";
 import { step } from "./step.ts";
-import type { Frame, Shot, ShotResult, World } from "./types.ts";
+import type { Frame, Impact, Shot, ShotResult, World } from "./types.ts";
+
+/** The largest momentum a pen can carry, which is what an impulse is measured against. */
+const REFERENCE_IMPULSE = PEN_MASS * MAX_LAUNCH_SPEED;
+
+/**
+ * Below this an impact is not a knock.
+ *
+ * Two pens settling against each other exchange a tiny impulse, and a broadside sitting exactly on
+ * the near-parallel boundary can start and stop touching over a few steps. Both are real contacts
+ * and neither is a collision anybody saw. The floor is what keeps them from being reported.
+ */
+const AUDIBLE_IMPULSE = 0.015;
 
 /**
  * Play one flick out to rest.
@@ -19,6 +31,7 @@ function play(
   world: World,
   shot: Shot,
   frames: Frame[] | null,
+  impacts: Impact[] | null,
 ): { rest: World; steps: number } {
   const w = cloneWorld(world);
   launch(pen(w, shot.side), shot);
@@ -26,9 +39,22 @@ function play(
   const manifold = createManifold();
   let steps = 0;
   while (steps < MAX_STEPS && !(atRest(w.a) && atRest(w.b))) {
-    step(w, manifold);
+    const impulse = step(w, manifold);
     steps++;
     if (frames && steps % FRAME_EVERY === 0) frames.push(frameOf(w));
+    if (impacts) {
+      const strength = impulse / REFERENCE_IMPULSE;
+      /*
+       * The frame this step will be drawn on. A collision inside a frame interval is heard on the
+       * frame that closes it, which is at most a sixtieth of a second late and never early.
+       */
+      if (strength >= AUDIBLE_IMPULSE) {
+        impacts.push({
+          frame: Math.ceil(steps / FRAME_EVERY) - 1,
+          strength: strength > 1 ? 1 : strength,
+        });
+      }
+    }
   }
 
   /*
@@ -44,7 +70,7 @@ function play(
 
 /** Where a flick leaves the world, and nothing else. What the bot asks. */
 export function resolve(world: World, shot: Shot): World {
-  return play(world, shot, null).rest;
+  return play(world, shot, null, null).rest;
 }
 
 /**
@@ -57,6 +83,7 @@ export function resolve(world: World, shot: Shot): World {
  */
 export function runShot(world: World, shot: Shot): ShotResult {
   const frames: Frame[] = [];
-  const { rest, steps } = play(world, shot, frames);
-  return { frames, steps, rest };
+  const impacts: Impact[] = [];
+  const { rest, steps } = play(world, shot, frames, impacts);
+  return { frames, steps, rest, impacts };
 }
