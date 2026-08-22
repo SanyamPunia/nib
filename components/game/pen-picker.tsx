@@ -61,11 +61,23 @@ function PenPreview({ id }: { id: PenId }) {
     return () => media.removeEventListener("change", refresh);
   }, [draw]);
 
+  /*
+   * The backing store is always the desktop size, and CSS is what shrinks it on a phone. Drawing
+   * smaller would mean a second scale to keep in step with the desk's own; scaling a larger drawing
+   * down instead is supersampling, so the phone gets the sharper preview of the two.
+   *
+   * `w-full` inside a six-column grid, capped rather than fixed, so the row shrinks to whatever
+   * width it is given and can neither overflow a narrow phone nor wrap six previews into five and
+   * one. The cap and the desktop width are arbitrary values because a pen's aspect is not a
+   * spacing step.
+   */
   return (
     <canvas
       ref={ref}
-      style={{ width: WIDTH, height: HEIGHT }}
-      className="pointer-events-none select-none"
+      className={cn(
+        "pointer-events-none block h-auto select-none",
+        "w-full max-w-11 sm:w-[54px] sm:max-w-none",
+      )}
     />
   );
 }
@@ -103,10 +115,15 @@ export function PenPicker({ chosen, labelledBy, onChoose }: PenPickerProps) {
       className="flex flex-wrap items-center justify-center gap-x-2 gap-y-1 sm:justify-start"
     >
       {/*
-       * Three by two on a phone, one row on anything wider. Letting it wrap freely put five on one
-       * line and the sixth alone underneath, which reads as an accident rather than a set.
+       * Six columns on a phone, one row on anything wider. It was three by two, which cost a row of
+       * footer height and left the catalogue far narrower than the opponent row above it, so the two
+       * groups had visibly different left edges. Six columns that shrink span the same width as the
+       * row above and read as one set.
+       *
+       * A grid rather than a wrap. Letting it wrap freely put five on one line and the sixth alone
+       * underneath, which reads as an accident.
        */}
-      <div className="grid grid-cols-3 place-items-center gap-1 sm:flex sm:items-center">
+      <div className="grid w-full grid-cols-6 place-items-center gap-1 sm:flex sm:w-auto sm:items-center">
         {PEN_IDS.map((id) => (
           <label
             key={id}

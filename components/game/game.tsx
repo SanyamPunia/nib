@@ -1,6 +1,12 @@
 "use client";
 
-import { CheckIcon, RotateCcwIcon, SlidersHorizontalIcon } from "lucide-react";
+import {
+  BotIcon,
+  CheckIcon,
+  RotateCcwIcon,
+  SlidersHorizontalIcon,
+  UsersIcon,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button.tsx";
 import { chooseShot } from "@/lib/bot/choose.ts";
@@ -26,8 +32,6 @@ const BOT: Side = "b";
 const BOT_PAUSE = 420;
 
 type Opponent = "human" | LevelName;
-
-const OPPONENTS: readonly Opponent[] = ["human", ...LEVEL_NAMES];
 
 const OPPONENT_LABEL: Record<Opponent, string> = {
   human: "Two players",
@@ -277,30 +281,66 @@ export function Game() {
                       >
                         Opponent
                       </span>
+                      {/*
+                       * One question, two kinds of answer. Playing a person in the room and playing
+                       * the bot at one of three strengths were four chips in a row, which read as
+                       * four opponents of the same kind and made "Two players" look like a
+                       * difficulty. They are split by a rule, and each side carries the icon for
+                       * what it is: people, or a machine. The rule is an element, never a glyph.
+                       *
+                       * Still one radiogroup. The split is how it looks, not what it is: exactly one
+                       * of these four is the opponent, and a screen reader should hear one choice.
+                       */}
                       <div
                         role="radiogroup"
                         aria-labelledby="nib-opponent"
-                        className="flex flex-wrap items-center justify-center gap-1 sm:justify-start"
+                        className="flex flex-wrap items-center justify-center gap-2 sm:justify-start"
                       >
-                        {OPPONENTS.map((choice) => (
-                          <Button
-                            key={choice}
-                            size="dense"
-                            variant={choice === opponent ? "outline" : "ghost"}
-                            role="radio"
-                            aria-checked={choice === opponent}
-                            onClick={() => {
-                              if (choice === opponent) return;
-                              startMatch(choice);
-                            }}
-                          >
-                            {OPPONENT_LABEL[choice]}
-                          </Button>
-                        ))}
+                        <Button
+                          size="dense"
+                          variant={opponent === "human" ? "outline" : "ghost"}
+                          role="radio"
+                          aria-checked={opponent === "human"}
+                          onClick={() => {
+                            if (opponent !== "human") startMatch("human");
+                          }}
+                        >
+                          <UsersIcon aria-hidden="true" className="size-3.5" />
+                          {OPPONENT_LABEL.human}
+                        </Button>
+
+                        <span aria-hidden="true" className="h-4 w-px shrink-0 bg-desk-edge" />
+
+                        {/*
+                         * The three strengths sit in their own box with a tighter gap than the one
+                         * separating the two answers, so the icon reads as marking all three rather
+                         * than as belonging to the first of them. Equal gaps put it nearer "easy"
+                         * than the rule, and it looked like part of that chip.
+                         */}
+                        <div className="flex items-center gap-1">
+                          <BotIcon
+                            aria-hidden="true"
+                            className="mr-0.5 size-3.5 shrink-0 text-ink-soft"
+                          />
+                          {LEVEL_NAMES.map((level) => (
+                            <Button
+                              key={level}
+                              size="dense"
+                              variant={level === opponent ? "outline" : "ghost"}
+                              role="radio"
+                              aria-checked={level === opponent}
+                              onClick={() => {
+                                if (level !== opponent) startMatch(level);
+                              }}
+                            >
+                              {OPPONENT_LABEL[level]}
+                            </Button>
+                          ))}
+                        </div>
                       </div>
                     </div>
 
-                    <div className="flex flex-col items-center gap-1 sm:contents">
+                    <div className="flex w-full flex-col items-center gap-1 sm:contents">
                       <span id="nib-pen" className="text-xs text-ink-soft sm:justify-self-end">
                         Your pen
                       </span>
