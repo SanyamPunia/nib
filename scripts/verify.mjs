@@ -62,6 +62,25 @@ try {
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 860, deviceScaleFactor: 2 });
 
+  /*
+   * Pin the canvas to one rasteriser for the whole run, so that comparing two pictures compares
+   * the drawing and not the renderer that drew it.
+   *
+   * Chrome starts a 2D canvas on the GPU and moves it to the CPU once it notices the pixels being
+   * read back, and the two do not agree to the last bit: measured here, the switch changed
+   * 1,194,690 of 3,574,272 pixels, by up to 263 across the channels, with nothing on the desk having
+   * moved. Every equality check below reads the canvas, so without this the checks themselves are
+   * what trip the change, and one taken before a long wait cannot be compared with one taken after.
+   * Asking for `willReadFrequently` up front means it is the CPU path from the first paint.
+   */
+  await page.evaluateOnNewDocument(() => {
+    const getContext = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function patched(kind, options) {
+      if (kind !== "2d") return getContext.call(this, kind, options);
+      return getContext.call(this, kind, { ...options, willReadFrequently: true });
+    };
+  });
+
   const consoleErrors = [];
   page.on("console", (m) => m.type() === "error" && consoleErrors.push(m.text()));
   page.on("pageerror", (e) => consoleErrors.push(String(e)));
