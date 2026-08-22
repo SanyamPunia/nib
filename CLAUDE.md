@@ -353,6 +353,35 @@ never during render, because the server has no storage and the first paint has t
 markup it hydrates. Everything read back is checked against the catalogue and the level names,
 since storage is the one input to this app a person can edit by hand.
 
+## The desk plays itself when nobody is playing on it
+
+The opening screen is two pens lying still, and nothing on it says the desk can be touched. After
+eight seconds untouched, two bots start a match on it and the caption changes to `press to play`.
+The first press stops it and hands the desk back. It is `components/game/use-attract.ts`, and the
+whole of it is a second `Match` that the board draws instead of its own.
+
+Four rules, each of which was a decision rather than an oversight.
+
+**It never touches the real match.** The demonstration owns a `Match` of its own and the board draws
+it. Stopping means the real resting position is passed to the arena again, from state that was never
+modified. `verify.mjs` presses to stop it and asserts the picture is pixel-identical to the one
+before it started.
+
+**It is silent.** The board passes no impacts for those frames, so nothing knocks. A page that
+started making noises at somebody who had not touched it would be a bug, and most browsers would
+refuse it anyway for want of a gesture.
+
+**It does not run under `prefers-reduced-motion`,** and it assumes that setting until the media query
+says otherwise, so nothing can animate before it has been asked. This is the only animation in the
+product that nobody asked for, which is exactly what that setting is about.
+
+**Re-arming its countdown is not state.** An earlier version counted interactions into React state so
+a second effect could watch the number. That re-rendered the board on every press, including the
+press that takes hold of a pen, and this board is built not to re-render there: a drag updates on
+every pointer event and is drawn from refs precisely so that it costs no renders. The timer lives in
+the effect that owns it, and its listeners exist only while a demonstration could run, so a match in
+progress carries none of it.
+
 ### The panel grows, it does not appear
 
 The choices open on a 300ms height animation rather than popping into place. Its height comes from a
@@ -453,6 +482,7 @@ components/
     arena.tsx           the canvas, its pointer handling and its playback loop
     game.tsx            one match, and the only React state in the project
     pen-picker.tsx      the catalogue, previewed through the arena's own barrel drawing
+    use-attract.ts      the demonstration that plays when nobody is playing
   ui/button.tsx         the button primitive
 lib/
   sim/                  the simulation. Pure, no React, no colour

@@ -606,7 +606,8 @@ try {
 
   /*
    * And it can be turned off. The same flick again with the sound muted has to start nothing at all,
-   * which is the only assertion that distinguishes a mute from a volume of nearly zero.
+   * which is the only assertion that distinguishes a mute from a volume of nearly zero. The buzz
+   * answers to the same switch, so it has to stop too.
    */
   const muteControl = () =>
     page.evaluate(() => {
@@ -643,18 +644,18 @@ try {
   await new Promise((r) => setTimeout(r, 400));
   await page.evaluate(() => {
     window.__sources = [];
-    const startedAt = AudioBufferSourceNode.prototype.start;
     window.__buzzes = [];
+    const startedAt = AudioBufferSourceNode.prototype.start;
     AudioBufferSourceNode.prototype.start = function patched(...args) {
       window.__sources.push(this);
       return startedAt.apply(this, args);
     };
-    const el = [...document.querySelectorAll("button")].find(
     const vibrated = navigator.vibrate.bind(navigator);
     navigator.vibrate = (pattern) => {
       window.__buzzes.push(pattern);
       return vibrated(pattern);
     };
+    const el = [...document.querySelectorAll("button")].find(
       (b) => b.getAttribute("aria-pressed") !== null,
     );
     if (el instanceof HTMLElement) el.click();
@@ -898,6 +899,20 @@ try {
   await page.screenshot({ path: `${SHOTS}/pens.png` });
 
   /*
+   * And the choices outlive the page, the way the mute does. A setup that has to be made again on
+   * every visit is a setup nobody makes twice.
+   */
+  await page.reload({ waitUntil: "networkidle0" });
+  await page.waitForSelector("canvas");
+  await new Promise((r) => setTimeout(r, 400));
+  const reloaded = await heldPens();
+  check(
+    "the chosen pens survive a reload",
+    reloaded.you[0] === traded.you[0] && reloaded.them[0] === traded.them[0],
+    `you ${reloaded.you.join(",")}, them ${reloaded.them.join(",")}`,
+  );
+
+  /*
    * A phone. The arena is landscape and a phone is not, so this is the one viewport where the whole
    * picture is arranged differently, and every assertion above was made against the other one.
    */
@@ -936,20 +951,6 @@ try {
     const labels = [...document.querySelectorAll('input[type="radio"][name^="pen-"]')].map(
       (el) => (el.parentElement ?? el).getBoundingClientRect(),
     );
-  /*
-   * And the choices outlive the page, the way the mute does. A setup that has to be made again on
-   * every visit is a setup nobody makes twice.
-   */
-  await page.reload({ waitUntil: "networkidle0" });
-  await page.waitForSelector("canvas");
-  await new Promise((r) => setTimeout(r, 400));
-  const reloaded = await heldPens();
-  check(
-    "the chosen pens survive a reload",
-    reloaded.you[0] === traded.you[0] && reloaded.them[0] === traded.them[0],
-    `you ${reloaded.you.join(",")}, them ${reloaded.them.join(",")}`,
-  );
-
     const lowest = Math.max(...labels.map((r) => r.bottom));
     return { lowest, viewport: window.innerHeight };
   });
@@ -1187,6 +1188,58 @@ try {
     el.textContent.trim().toLowerCase(),
   );
   check("and the new match is waiting on a flick", backToPlay.includes("to flick"), backToPlay);
+
+  /*
+   * The desk plays itself when nobody is playing on it.
+   *
+   * This is the one check that has to sit and wait, because the thing being tested is what happens
+   * when nothing happens. Moving the pointer is deliberately not an interaction: the cursor is left
+   * wherever the last check put it, and only a press or a key wakes the page.
+   */
+  await page.reload({ waitUntil: "networkidle0" });
+  await page.waitForSelector("canvas");
+  await new Promise((r) => setTimeout(r, 500));
+  const beforeDemo = await canvasHash();
+  const idleCaption = await page.$eval("[data-status]", (el) => el.textContent.trim());
+
+  await new Promise((r) => setTimeout(r, 10000));
+  const demoCaption = await page.$eval("[data-status]", (el) => el.textContent.trim());
+  const duringDemo = await canvasHash();
+  check(
+    "an untouched desk starts playing by itself",
+    demoCaption.toLowerCase().includes("press to play"),
+    `caption was "${idleCaption}" and became "${demoCaption}"`,
+  );
+  check("and the pens actually move for it", duringDemo !== beforeDemo);
+  await page.screenshot({ path: `${SHOTS}/attract.png` });
+
+  /*
+   * A press takes the desk back, and takes it back to the position the player left it in.
+   *
+   * The canvas box is measured here rather than reused from the top of the file. The viewport has
+   * been a phone and two desktop sizes since then, and a stale box has bitten this file more times
+   * than any other mistake in it. Anywhere on the canvas will do: the demonstration is not
+   * interactive, so this press only wakes the page and cannot start a drag.
+   */
+  const deskNow = await page.$eval("canvas", (el) => {
+    const r = el.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  });
+  await page.mouse.move(deskNow.x, deskNow.y);
+  await page.mouse.down();
+  await page.mouse.up();
+  await new Promise((r) => setTimeout(r, 400));
+  const afterPress = await page.$eval("[data-status]", (el) => el.textContent.trim());
+  check(
+    "and a press hands it back",
+    afterPress.toLowerCase().includes("to flick"),
+    `caption is "${afterPress}"`,
+  );
+  check(
+    "with both pens where the player left them",
+    (await canvasHash()) === beforeDemo,
+    "the opening position came back",
+  );
 
   check("nothing logged an error", consoleErrors.length === 0, consoleErrors.join(" | "));
 

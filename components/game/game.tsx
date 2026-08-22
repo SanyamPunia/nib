@@ -22,6 +22,7 @@ import { muteSounds, restoreMute } from "@/lib/sound/sounds.ts";
 import { cn } from "@/lib/utils.ts";
 import { Arena } from "./arena.tsx";
 import { PenPicker } from "./pen-picker.tsx";
+import { useAttract } from "./use-attract.ts";
 
 /** Who the player is on this screen, and who the bot is when there is one. */
 const YOU: Side = "a";
@@ -165,13 +166,21 @@ export function Game() {
     const held = models[side];
     if (held === id) return;
     const theirs = tradedFor(id, held, models[other(side)]);
-    const next: Record<Side, PenId> = side === "a" ? { a: id, b: theirs } : { a: theirs, b: id };
+    const next: Record<Side, PenId> =
+      side === "a" ? { a: id, b: theirs } : { a: theirs, b: id };
     writeSetup({ opponent, models: next });
     setState((s) => ({ ...s, models: next }));
   };
 
   const resting = useMemo(() => frameOf(match.world), [match.world]);
   const [setupOpen, setSetupOpen] = useState(false);
+
+  /*
+   * The desk plays itself when nobody has touched it. Only from an opening position with the
+   * choices put away: a match with a flick in it is something to come back to, and the panel being
+   * open means somebody is in the middle of deciding.
+   */
+  const attract = useAttract(!playing && !result && match.shots === 0 && !setupOpen);
 
   /*
    * The sound module owns whether the game is silent, and this mirrors it for the icon. The stored
@@ -219,7 +228,15 @@ export function Game() {
     <main className="safe-area flex h-dvh flex-col items-center">
       <div className="flex h-16 shrink-0 items-end gap-3 pb-2 text-sm text-ink">
         <span data-status className="flex h-7 items-center gap-2">
-          {result?.ending === "draw" ? (
+          {attract.running ? (
+            /*
+             * No dot. The pens on screen are two bots playing, so a dot saying whose flick it is
+             * would be pointing at a turn that is not yours. This is the one caption that is an
+             * instruction, and it is the reason the demonstration exists: a still desk says
+             * nothing about being touchable.
+             */
+            <span>press to play</span>
+          ) : result?.ending === "draw" ? (
             <>
               {/*
                * Both pens, because a draw belongs to both of them. And it says why: an empty desk
@@ -289,17 +306,22 @@ export function Game() {
       </div>
 
       <div className="min-h-0 w-full flex-1 px-3 pb-3 sm:px-4 sm:pb-4">
+        {/*
+         * While the demonstration runs it supplies the picture and nothing else changes hands. It
+         * passes no impacts, which is what keeps it silent, and the real `resting` is one property
+         * read away the moment it stops.
+         */}
         <Arena
-          resting={resting}
-          playback={playing?.frames ?? null}
-          impacts={playing?.impacts ?? null}
+          resting={attract.resting ?? resting}
+          playback={attract.running ? attract.playback : (playing?.frames ?? null)}
+          impacts={attract.running ? null : (playing?.impacts ?? null)}
           turn={match.turn}
-          interactive={!playing && !result && !botTurn}
+          interactive={!attract.running && !playing && !result && !botTurn}
           models={models}
           won={winner}
           wonSeed={match.shots}
           onFlick={onFlick}
-          onPlaybackEnd={onPlaybackEnd}
+          onPlaybackEnd={attract.running ? attract.onPlaybackEnd : onPlaybackEnd}
         />
       </div>
 
