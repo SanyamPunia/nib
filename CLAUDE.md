@@ -504,6 +504,28 @@ animation of its own cause. `verify.mjs` checks both that it appears and that it
 Accent is spent here and nowhere else. If a second flourish is ever wanted, take it from this one
 rather than adding to it.
 
+## The card a link unfurls into
+
+`app/opengraph-image.png` is the whole of it. Next finds it by name and emits `og:image` with its
+type and dimensions, and mirrors the lot into the `twitter:image` tags, so nothing in
+`layout.tsx` names the file and nothing there can go stale against it. `opengraph-image.alt.txt`
+beside it carries the alt text, and its bytes are the attribute value: a trailing newline lands in
+the tag.
+
+**There is no `twitter-image.png`.** X falls back to `og:image` when no Twitter image is given, so a
+second copy of the same 270KB would buy nothing.
+
+**`twitter: { card: "summary_large_image" }` has to be said out loud.** The default is `summary`,
+which crops a 1200 by 630 card into a small square.
+
+**The alt text describes the card, not the game.** The card carries the mark, the name and one line.
+It has no desk and no pens in it, and saying otherwise would be marking up something that is not
+there.
+
+The file was re-encoded to `rgb24` before it landed. It arrived as RGBA with not one translucent
+pixel in 756,000, and dropping the dead channel took it from 418KB to 267KB with every pixel
+identical.
+
 ## The mark
 
 `app/icon.svg` is the favicon: the mark on a rounded dark square, which is what a browser tab wants.
