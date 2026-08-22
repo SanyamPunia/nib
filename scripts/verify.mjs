@@ -567,6 +567,85 @@ try {
   );
 
   /*
+   * And it can be turned off. The same flick again with the sound muted has to start nothing at all,
+   * which is the only assertion that distinguishes a mute from a volume of nearly zero.
+   */
+  const muteControl = () =>
+    page.evaluate(() => {
+      const el = [...document.querySelectorAll("button")].find(
+        (b) => b.getAttribute("aria-pressed") !== null,
+      );
+      if (!(el instanceof HTMLElement)) return null;
+      return { pressed: el.getAttribute("aria-pressed"), label: el.getAttribute("aria-label") };
+    });
+  const beforeMute = await muteControl();
+  check(
+    "the sound has an off switch",
+    beforeMute?.pressed === "false" && /sound off/i.test(beforeMute.label ?? ""),
+    JSON.stringify(beforeMute),
+  );
+
+  const flickHard = async () => {
+    await page.mouse.move(hardHold.x, hardHold.y);
+    await page.mouse.down();
+    await page.mouse.move(hardPull.x, hardPull.y, { steps: 10 });
+    await page.mouse.up();
+    await page.waitForFunction(
+      () => {
+        const t = (document.querySelector("[data-status]")?.textContent ?? "").toLowerCase();
+        return t.includes("wins") || t.includes("brick");
+      },
+      { timeout: 15000 },
+    );
+    await new Promise((r) => setTimeout(r, 1200));
+  };
+
+  await page.reload({ waitUntil: "networkidle0" });
+  await page.waitForSelector("canvas");
+  await new Promise((r) => setTimeout(r, 400));
+  await page.evaluate(() => {
+    window.__sources = [];
+    const startedAt = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function patched(...args) {
+      window.__sources.push(this);
+      return startedAt.apply(this, args);
+    };
+    const el = [...document.querySelectorAll("button")].find(
+      (b) => b.getAttribute("aria-pressed") !== null,
+    );
+    if (el instanceof HTMLElement) el.click();
+  });
+  await new Promise((r) => setTimeout(r, 200));
+  const afterMute = await muteControl();
+  check(
+    "pressing it says the sound is off",
+    afterMute?.pressed === "true" && /sound on/i.test(afterMute.label ?? ""),
+    JSON.stringify(afterMute),
+  );
+
+  await flickHard();
+  const whileMuted = await page.evaluate(() => window.__sources?.length ?? 0);
+  check("a muted collision makes no sound at all", whileMuted === 0, `${whileMuted} sound(s)`);
+
+  /* And the choice outlives the page, or it would have to be made again every match. */
+  await page.reload({ waitUntil: "networkidle0" });
+  await page.waitForSelector("canvas");
+  await new Promise((r) => setTimeout(r, 400));
+  const remembered = await muteControl();
+  check(
+    "the choice survives a reload",
+    remembered?.pressed === "true",
+    JSON.stringify(remembered),
+  );
+  await page.evaluate(() => {
+    const el = [...document.querySelectorAll("button")].find(
+      (b) => b.getAttribute("aria-pressed") !== null,
+    );
+    if (el instanceof HTMLElement) el.click();
+  });
+  await new Promise((r) => setTimeout(r, 200));
+
+  /*
    * Where the pen is taken hold of has to change the shot, and the only honest way to check the
    * offset is plumbed all the way through is to play the same pull twice from two places and
    * see two different desks. Both pulls are five centimetres, which is under the cap at either

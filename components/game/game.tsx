@@ -6,6 +6,8 @@ import {
   RotateCcwIcon,
   SlidersHorizontalIcon,
   UsersIcon,
+  Volume2Icon,
+  VolumeXIcon,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button.tsx";
@@ -15,6 +17,7 @@ import { applyShot, type Match, newMatch, other } from "@/lib/match/rules.ts";
 import { distinctFrom, PEN_DOT, PENS, type PenId } from "@/lib/pens.ts";
 import { frameOf } from "@/lib/sim/frame.ts";
 import type { Frame, Impact, Side } from "@/lib/sim/types.ts";
+import { muteSounds, restoreMute } from "@/lib/sound/sounds.ts";
 import { cn } from "@/lib/utils.ts";
 import { Arena } from "./arena.tsx";
 import { PenPicker } from "./pen-picker.tsx";
@@ -159,6 +162,16 @@ export function Game() {
   const [setupOpen, setSetupOpen] = useState(false);
 
   /*
+   * The sound module owns whether the game is silent, and this mirrors it for the icon. The stored
+   * choice is applied in an effect rather than read while rendering: the server has no storage, so
+   * reading it during render would make the first paint disagree with the markup it hydrates.
+   */
+  const [muted, setMuted] = useState(false);
+  useEffect(() => {
+    setMuted(restoreMute());
+  }, []);
+
+  /*
    * There is one thing to do on this screen, and it is flick a pen.
    *
    * Everything else is a once-a-session decision, and for a long time all of it sat open at the
@@ -193,6 +206,36 @@ export function Game() {
               </span>
             </>
           )}
+        </span>
+        {/*
+         * Silence lives up here and not in the setup panel, for two reasons. The panel is only on
+         * screen before a match and after one, so a control in it could not quiet the match you are
+         * in, which is the only moment anybody reaches for it. And the footer holds one thing to
+         * press on purpose. This row already carries a control, so it is the honest home.
+         *
+         * Icon only, so it takes a `title` as well as a label. The pen previews set the precedent:
+         * there is no tooltip primitive in this project and hand-rolling one for this would be more
+         * component than the control.
+         */}
+        <span className="flex h-7 items-center">
+          <Button
+            size="dense"
+            variant="ghost"
+            aria-pressed={muted}
+            aria-label={muted ? "Turn sound on" : "Turn sound off"}
+            title={muted ? "Turn sound on" : "Turn sound off"}
+            onClick={() => {
+              const next = !muted;
+              muteSounds(next);
+              setMuted(next);
+            }}
+          >
+            {muted ? (
+              <VolumeXIcon aria-hidden="true" className="size-3.5" />
+            ) : (
+              <Volume2Icon aria-hidden="true" className="size-3.5" />
+            )}
+          </Button>
         </span>
         {over ? (
           <span className="flex h-7 items-center">

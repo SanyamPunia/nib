@@ -62,6 +62,9 @@ const LOUDNESS_CURVE = 0.6;
  */
 const DETUNE = 0.06;
 
+/** Where the choice to silence the game is kept, so it survives a reload. */
+const MUTE_STORE = "nib:muted";
+
 interface Kit {
   ctx: AudioContext;
   /** One buffer per knock, filled as each arrives. A hole is a clip that failed to load. */
@@ -71,6 +74,13 @@ interface Kit {
 
 let kit: Kit | null = null;
 let starting = false;
+/**
+ * Whether the game is silent.
+ *
+ * Held here rather than in the component that draws the control, because this is the module that
+ * has to obey it and there is exactly one answer for the whole page. React mirrors it for the icon.
+ */
+let muted = false;
 /** The knock played last, so the same recording never lands twice running. */
 let lastKnock = -1;
 /** The win currently sounding, so two of them cannot overlap. */
@@ -109,6 +119,8 @@ async function load(ctx: AudioContext, path: string): Promise<AudioBuffer | null
  * met would miss the knock it was decoding for.
  */
 export function primeSounds(): void {
+  /* Nothing to fetch and no context to build for someone who has turned it off. Unmuting primes. */
+  if (muted) return;
   if (kit || starting) {
     void kit?.ctx.resume().catch(() => {});
     return;
@@ -179,7 +191,7 @@ function pick(ready: number[]): number {
  */
 export function playKnock(strength: number): void {
   const active = kit;
-  if (!active) return;
+  if (muted || !active) return;
 
   const ready: number[] = [];
   for (let i = 0; i < KNOCKS; i++) if (active.knocks[i]) ready.push(i);
@@ -208,16 +220,9 @@ export function playKnock(strength: number): void {
  */
 export function playWin(): void {
   const active = kit;
-  if (!active?.win) return;
+  if (muted || !active?.win) return;
 
-  if (winPlaying) {
-    try {
-      winPlaying.stop();
-    } catch {
-      /* Already finished. */
-    }
-    winPlaying = null;
-  }
+  stopWin();
   const source = fire(active, active.win, WIN_GAIN, 1);
   winPlaying = source;
   if (source) {
@@ -227,4 +232,51 @@ export function playWin(): void {
       if (typeof done === "function") done.call(source, event);
     };
   }
+}
+
+/** Cut off a win that is still sounding. Silent if none is. */
+function stopWin(): void {
+  if (!winPlaying) return;
+  try {
+    winPlaying.stop();
+  } catch {
+    /* Already finished. */
+  }
+  winPlaying = null;
+}
+
+/**
+ * Turn the sound off or on, and remember which.
+ *
+ * Muting stops a win that is still playing, because the one moment somebody reaches for this is
+ * while a noise they did not want is coming out of the machine. Unmuting primes, since the click
+ * that did it is the gesture a browser wants before a page may make a noise, and priming here is
+ * what lets `primeSounds` skip the fetch entirely for someone who arrived muted.
+ */
+export function muteSounds(next: boolean): void {
+  muted = next;
+  try {
+    localStorage.setItem(MUTE_STORE, next ? "1" : "0");
+  } catch {
+    /* A private window will forget. Not worth failing over. */
+  }
+  if (next) stopWin();
+  else primeSounds();
+}
+
+/**
+ * Apply the remembered choice and report it.
+ *
+ * Called from an effect rather than read while rendering. The server has no storage, so reading it
+ * during render would make the first paint disagree with the markup it hydrates.
+ */
+export function restoreMute(): boolean {
+  let stored = false;
+  try {
+    stored = localStorage.getItem(MUTE_STORE) === "1";
+  } catch {
+    stored = false;
+  }
+  muted = stored;
+  return stored;
 }
