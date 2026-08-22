@@ -93,6 +93,64 @@ test("the hardest level takes a win that is there to be taken", () => {
   assert.deepEqual(applied.match.result, { winner: "b", ending: "knocked" });
 });
 
+test("the bot flicks at the other pen, whichever side of it that is", () => {
+  /*
+   * The pens change ends constantly, and this is the position the bot could not play at all: the
+   * other pen behind it, so reaching it means flicking the way the old fixed fan called backwards.
+   * Every candidate was forced into one half of the compass, the aimed ones had their x flipped
+   * after being pointed correctly, and what came out was the best of a set of shots that all
+   * missed. It was reported as the bot barely moving.
+   */
+  const world = setup();
+  world.a.x = 16;
+  world.b.x = -8;
+
+  for (const level of LEVEL_NAMES) {
+    for (let nonce = 0; nonce < 8; nonce++) {
+      const shot = chooseShot(world, "b", level, nonce);
+      assert.ok(shot.vx > 0, `${level} flicked away from the other pen on turn ${nonce}`);
+    }
+  }
+});
+
+test("no position is answered with a flick of nothing", () => {
+  /*
+   * The bug this holds off is a scoring tie, not a bad aim. Out of reach of the other pen, and
+   * anywhere in the middle band of the desk where their distance to the nearest edge cannot change,
+   * every candidate used to score the same and the winner was whichever moved least. Three times
+   * the legal floor is about a centimetre and a half of slide, which is the least that reads as a
+   * flick rather than as the bot passing.
+   */
+  const reach = MIN_LAUNCH_SPEED * 3;
+  const places: readonly (readonly [number, number, number, number])[] = [
+    /* Across the desk, further apart than any flick can travel. */
+    [-18, -12, 9, 0],
+    /* Both inside the middle band, where pushing along the desk changes no edge distance. */
+    [-1, 0, 1, 0],
+    [2, 0, 4, 0],
+    [0, 0, 12, 0],
+  ];
+
+  for (const [ax, ay, bx, by] of places) {
+    const world = setup();
+    world.a.x = ax;
+    world.a.y = ay;
+    world.b.x = bx;
+    world.b.y = by;
+
+    for (const level of LEVEL_NAMES) {
+      for (let nonce = 0; nonce < 4; nonce++) {
+        const shot = chooseShot(world, "b", level, nonce);
+        const speed = length(shot.vx, shot.vy);
+        assert.ok(
+          speed >= reach,
+          `${level} answered ${ax},${ay} against ${bx},${by} with a flick of ${speed.toFixed(1)}`,
+        );
+      }
+    }
+  }
+});
+
 test("a bot match plays itself out to a result", () => {
   /* Both sides played by the bot. If either level can stall, this never ends. */
   let match = newMatch("a");

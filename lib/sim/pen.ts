@@ -41,15 +41,6 @@ export function setup(): World {
   };
 }
 
-/**
- * The way each side faces: across the centre line, never back towards its own edge.
- *
- * Fixed per side rather than worked out from where the pens currently are. Taking it from the
- * live positions would move the boundary of a legal shot around during a match, and a limit
- * that shifts is worse than a limit.
- */
-export const FORWARD_X: Record<Side, 1 | -1> = { a: 1, b: -1 };
-
 export function clonePen(p: Pen): Pen {
   return { ...p };
 }

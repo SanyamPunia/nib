@@ -194,9 +194,10 @@ is not drawn below `MIN_LAUNCH_SPEED`, and the rules refuse a flick below the sa
 without a floor a player can flick nothing and hand the turn back and there is no passing in this
 game. The two thresholds are deliberately the same: anything the player can see, they can play.
 
-`FORWARD_X` still exists and the bot still prefers to flick across the centre line. That is a
-preference and not a rule: spending samples on shots that lose outright makes a weaker opponent
-than spending them on shots that might win.
+`FORWARD_X` is gone too, and it outlived the rule by long enough to do real damage. It gave each
+side a half of the compass, and the bot kept it as a preference on the reasoning that a shot across
+the centre line is a shot that might win. That is only true of the opening position. See "The bot
+samples, it does not search" for what it cost.
 
 ## A drag that never ends is the worst state this component has
 
@@ -241,7 +242,7 @@ them lands, so the bot draws candidates, rolls each one out to rest, and keeps t
 hundred rollouts is three milliseconds, which is why it runs on the main thread and why there is
 no worker.
 
-Four things about it are load-bearing.
+Six things about it are load-bearing.
 
 1. **It is deterministic, seeded from the position.** A match is meant to replay from nothing but
    the side that started and the list of flicks. If the bot rolled real dice, a bot match could
@@ -264,6 +265,28 @@ Four things about it are load-bearing.
    win. Short of a result the score is the other pen's distance from an edge against its own room
    to spare, weighted two to one: their danger is worth more, but not much more, because the next
    flick is theirs.
+
+5. **The fan is anchored on the other pen, never on the desk.** This was the bot's worst bug and it
+   was reported as the bot barely moving its pen. `FORWARD_X` gave each side a fixed half of the
+   compass and every candidate was forced into it, including the aimed ones, whose x was flipped
+   after being pointed correctly. The pens change ends constantly, so from the moment the bot was
+   past the pen it was aiming at, its entire candidate set pointed away from it. What it played was
+   the best of a set of shots that all did nothing, which is a flick of about a centimetre.
+
+6. **The score has a term for closing the distance, and it is the smallest of the three.** Without
+   one there are whole positions where every candidate scores the same, and the bot then picks
+   whichever leaves it nearest the middle of the desk, which is the one that hardly moves. Two
+   things cause the tie. Nothing in range can reach the other pen, so their term cannot move. And
+   `edgeGap` is the distance to the nearest edge on a desk that is 40 by 28, so for any pen inside
+   `|x| <= 6` the nearest edge is above or below it and shoving that pen along the desk does not
+   change the number at all. `CLOSING` breaks the tie by advancing, which is what a player does
+   when they are out of range. It is worth a quarter of a centimetre of the other two, so it can
+   never outvote them.
+
+Measured across 2970 positions at every level, flicks too weak to slide 2cm ran at 17% of turns on
+hard and 23% on easy. They are now 0.2% and 3.5%. Bot against bot the difficulties did not even
+order correctly before this, because a bot that parks cannot finish a match: medium against hard
+hit the 400-flick cap in both games and now ends in 40.
 
 `resolve` in `lib/sim/run.ts` exists for this. It is `runShot` without the frames, because
 collecting a hundred poses per rollout would allocate tens of thousands of objects a turn to look
