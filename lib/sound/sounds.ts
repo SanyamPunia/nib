@@ -109,6 +109,32 @@ let lastKnock = -1;
 /** The win currently sounding, so two of them cannot overlap. */
 let winPlaying: AudioBufferSourceNode | null = null;
 
+/**
+ * Wake a context up, from inside the gesture that is allowed to.
+ *
+ * `resume()` on its own is enough for Chrome and is not enough for WebKit, which wants a source
+ * node actually started inside the gesture before it will let a context out of its suspended
+ * state. That is the whole reason every audio library carries this: one frame of silence, started
+ * and thrown away, so the browser has seen the page play something while the person was touching
+ * it. The frame is inaudible by construction, being a single sample of zero.
+ *
+ * Skipped once the context is running, so it happens once a session rather than once a press.
+ */
+function unlock(ctx: AudioContext): void {
+  if (ctx.state !== "running") {
+    try {
+      const source = ctx.createBufferSource();
+      source.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
+      source.connect(ctx.destination);
+      source.start();
+      source.onended = () => source.disconnect();
+    } catch {
+      /* An unlock nobody heard is not worth an exception either. */
+    }
+  }
+  void ctx.resume().catch(() => {});
+}
+
 function makeContext(): AudioContext | null {
   const Ctor =
     typeof window === "undefined"
@@ -145,20 +171,24 @@ export function primeSounds(): void {
   /* Nothing to fetch and no context to build for someone who has turned it off. Unmuting primes. */
   if (muted) return;
   if (kit || starting) {
-    void kit?.ctx.resume().catch(() => {});
+    if (kit) unlock(kit.ctx);
     return;
   }
   starting = true;
 
   const ctx = makeContext();
-  if (!ctx) return;
+  if (!ctx) {
+    /* Otherwise `starting` stays true with no kit behind it and the game is silent for good. */
+    starting = false;
+    return;
+  }
   const built: Kit = {
     ctx,
     knocks: Array.from({ length: KNOCKS }, () => null),
     win: null,
   };
   kit = built;
-  void ctx.resume().catch(() => {});
+  unlock(ctx);
 
   for (let i = 0; i < KNOCKS; i++) {
     void load(ctx, `/sound/knock-${i + 1}.mp3`).then((buffer) => {

@@ -58,7 +58,16 @@ try {
   await waitForServer();
   await mkdir(SHOTS, { recursive: true });
 
-  browser = await launch({ executablePath: CHROME, headless: true });
+  /*
+   * Run under the autoplay policy a real browser applies, rather than the permissive one a fresh
+   * headless profile gets. Without it the audio context is allowed to start running on its own, the
+   * unlock path never executes, and every sound check below passes for a reason no visitor enjoys.
+   */
+  browser = await launch({
+    executablePath: CHROME,
+    headless: true,
+    args: ["--autoplay-policy=user-gesture-required"],
+  });
   const page = await browser.newPage();
   await page.setViewport({ width: 1280, height: 860, deviceScaleFactor: 2 });
 
@@ -533,6 +542,15 @@ try {
      */
     window.__sources = [];
     window.__gainNodes = [];
+    /* Every context the page builds, so the unlock can be checked rather than assumed. */
+    window.__contexts = [];
+    const Ctor = window.AudioContext;
+    window.AudioContext = function patched(...args) {
+      const ctx = new Ctor(...args);
+      window.__contexts.push(ctx);
+      return ctx;
+    };
+    window.AudioContext.prototype = Ctor.prototype;
     /*
      * The buzz is felt, not heard, so the only thing observable from here is that it was asked
      * for. Chrome has `vibrate` and no motor behind it, which is exactly the case the code has to
@@ -546,7 +564,12 @@ try {
     };
     const startedAt = AudioBufferSourceNode.prototype.start;
     AudioBufferSourceNode.prototype.start = function patched(...args) {
-      window.__sources.push(this);
+      /*
+       * Skip the one frame of silence the page starts to unlock the context on WebKit. It is a
+       * sound in the sense that a source node played it, and it is not a sound anybody can hear,
+       * so counting it here would report a knock on a page that knocked at nothing.
+       */
+      if ((this.buffer?.duration ?? 0) > 0.001) window.__sources.push(this);
       return startedAt.apply(this, args);
     };
     const createGain = AudioContext.prototype.createGain;
@@ -585,6 +608,17 @@ try {
     buzzes: window.__buzzes ?? [],
   }));
   check("a collision is heard", heard.knocks > 0, `${heard.knocks} knock(s) played`);
+  /*
+   * And the context it played through was unlocked by the press, under a policy that does not hand
+   * one over for free. WebKit wants a source started inside the gesture before it will allow this,
+   * which is what the frame of silence in `unlock` is for.
+   */
+  const contexts = await page.evaluate(() => (window.__contexts ?? []).map((c) => c.state));
+  check(
+    "the press unlocked the audio context",
+    contexts.length === 1 && contexts[0] === "running",
+    contexts.join(", ") || "no context was built",
+  );
   check(
     "and it is played quietly",
     heard.gains.length > 0 && heard.gains.every((v) => v > 0 && v <= 0.32),
@@ -647,7 +681,7 @@ try {
     window.__buzzes = [];
     const startedAt = AudioBufferSourceNode.prototype.start;
     AudioBufferSourceNode.prototype.start = function patched(...args) {
-      window.__sources.push(this);
+      if ((this.buffer?.duration ?? 0) > 0.001) window.__sources.push(this);
       return startedAt.apply(this, args);
     };
     const vibrated = navigator.vibrate.bind(navigator);
@@ -1121,10 +1155,13 @@ try {
     window.__played = [];
     const startedAt = AudioBufferSourceNode.prototype.start;
     AudioBufferSourceNode.prototype.start = function patched(...args) {
-      window.__played.push({
-        channels: this.buffer?.numberOfChannels ?? 0,
-        seconds: this.buffer?.duration ?? 0,
-      });
+      /* The unlock frame is not a sound. See the note where `__sources` is patched. */
+      if ((this.buffer?.duration ?? 0) > 0.001) {
+        window.__played.push({
+          channels: this.buffer?.numberOfChannels ?? 0,
+          seconds: this.buffer?.duration ?? 0,
+        });
+      }
       return startedAt.apply(this, args);
     };
   });

@@ -753,6 +753,14 @@ switch is off silent. And WebKit has never shipped the Vibration API, so `naviga
 undefined in every browser on iOS, all of which are WebKit underneath. There is no web-exposed
 haptic there to fall back on, which is why the buzz checks for the method rather than for a device.
 
+**Unlocking a context takes more than `resume()`.** Chrome is happy with it. WebKit wants a source
+node actually started inside the gesture before it will let a context out of its suspended state,
+which is why `unlock` plays one frame of silence and throws it away. It is skipped once the context
+is running, so it happens once a session rather than once a press, and `verify.mjs` runs Chrome
+under `--autoplay-policy=user-gesture-required` so the unlock path is exercised at all. Without that
+flag a fresh headless profile hands the page a running context for free and every sound check passes
+for a reason no visitor enjoys.
+
 **Both the press and the release prime.** Which gestures a browser will unlock audio for is not the
 same everywhere and WebKit is stricter than Chrome, so priming from one gesture is a single point of
 failure for every sound in the game. The release is still a second or so ahead of the earliest
