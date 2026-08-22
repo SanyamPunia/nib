@@ -373,7 +373,7 @@ overflow: checked at 320px as well as 390px.
 ## Architecture
 
 ```
-app/                    layout, page, globals.css, icon.svg
+app/                    layout, page, globals.css, icon.svg, robots.ts, the card image
 public/sound/           nine knock recordings and the win, normalised and trimmed
 public/brand/           the mark on its own, for anywhere outside the app
 components/
@@ -511,6 +511,12 @@ type and dimensions, and mirrors the lot into the `twitter:image` tags, so nothi
 `layout.tsx` names the file and nothing there can go stale against it. `opengraph-image.alt.txt`
 beside it carries the alt text, and its bytes are the attribute value: a trailing newline lands in
 the tag.
+
+**The description is written lowercase, and that is the one place copy is.** Everywhere else the
+markup keeps sentence case and CSS lowercases it, so a screen reader and a crawler get a proper
+sentence. This string never passes through that CSS: it goes straight to a search result and a card,
+which print it verbatim. Lowercase there is a deliberate choice about how the game presents itself,
+not the stylesheet leaking. The name is unaffected, being a lowercase word already.
 
 **`og:site_name` is set even though it repeats the title.** Discord and others print it above the
 title, and a card without it reads as coming from nowhere. It is the one place saying the same word
@@ -804,7 +810,7 @@ anywhere the tests can reach. A constructor writes its own field assignments.
 | Icon library | `lucide-react` |
 | Color system | Semantic tokens in `globals.css` only. **No hex, no palette utilities, no arbitrary color values in components.** Tokens the markup needs are registered under `@theme inline` so a component can write `bg-desk` rather than point at the variable. |
 | Type scale | `text-sm` carries the UI. There is almost no text. |
-| Casing | **All lowercase**, via `text-transform` on `body`. Write copy in sentence case. |
+| Casing | **All lowercase**, via `text-transform` on `body`. Write copy in sentence case. The one exception is `site.description`, see the card section. |
 | Theme | Follows the system through `prefers-color-scheme`. There is no `data-theme` override, because there is no control that would set one. Adding a toggle is the change that adds the attribute. |
 | Default radius | `rounded-full` for controls. The desk has its own radius in `lib/draw/arena.ts`. |
 | Fonts | The system sans stack. Revisit when the page has enough text to care. |

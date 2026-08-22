@@ -14,6 +14,6 @@
  */
 export const site = {
   name: "nib",
-  description: "Two pens on a desk. Knock the other one off.",
+  description: "two pens on a desk. knock the other one off.",
   origin: "https://nib.sanyam.sh",
 } as const;

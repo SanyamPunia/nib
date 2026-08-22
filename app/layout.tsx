@@ -30,7 +30,16 @@ export const metadata: Metadata = {
    * given, so a second copy of the same 270KB would buy nothing. The card type does have to be said
    * out loud: the default is `summary`, which crops a 1200 by 630 image into a small square.
    */
-  twitter: { card: "summary_large_image" },
+  twitter: {
+    card: "summary_large_image",
+    /*
+     * The same account in both, because there is one person here. X reads `site` as the publisher
+     * and `creator` as the author, and they fill different slots on the card, so setting only one
+     * leaves the other blank rather than falling back.
+     */
+    site: "@sanyampunia",
+    creator: "@sanyampunia",
+  },
 };
 
 /*
