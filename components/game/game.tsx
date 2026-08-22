@@ -12,9 +12,10 @@ import {
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button.tsx";
 import { chooseShot } from "@/lib/bot/choose.ts";
-import { LEVEL_NAMES, type LevelName } from "@/lib/bot/levels.ts";
+import { LEVEL_NAMES } from "@/lib/bot/levels.ts";
 import { applyShot, type Match, newMatch, other } from "@/lib/match/rules.ts";
 import { PEN_DOT, PENS, type PenId, tradedFor } from "@/lib/pens.ts";
+import { type Opponent, readSetup, writeSetup } from "@/lib/setup.ts";
 import { frameOf } from "@/lib/sim/frame.ts";
 import type { Frame, Impact, Side } from "@/lib/sim/types.ts";
 import { muteSounds, restoreMute } from "@/lib/sound/sounds.ts";
@@ -33,8 +34,6 @@ const BOT: Side = "b";
  * changing hands is something the player sees happen.
  */
 const BOT_PAUSE = 420;
-
-type Opponent = "human" | LevelName;
 
 const OPPONENT_LABEL: Record<Opponent, string> = {
   human: "Two players",
@@ -151,6 +150,7 @@ export function Game() {
   const startMatch = (next: Opponent) => {
     /* The loser starts. On a draw nobody lost, so it goes to whoever did not take the last shot. */
     const first = result ? other(result.winner ?? match.turn) : YOU;
+    writeSetup({ opponent: next, models });
     setState((s) => ({ ...s, match: newMatch(first), playing: null, opponent: next }));
   };
 
@@ -162,12 +162,12 @@ export function Game() {
    * holding and they get the one just put down. See `tradedFor`.
    */
   const choosePen = (side: Side, id: PenId) => {
-    setState((s) => {
-      const held = s.models[side];
-      if (held === id) return s;
-      const theirs = tradedFor(id, held, s.models[other(side)]);
-      return { ...s, models: side === "a" ? { a: id, b: theirs } : { a: theirs, b: id } };
-    });
+    const held = models[side];
+    if (held === id) return;
+    const theirs = tradedFor(id, held, models[other(side)]);
+    const next: Record<Side, PenId> = side === "a" ? { a: id, b: theirs } : { a: theirs, b: id };
+    writeSetup({ opponent, models: next });
+    setState((s) => ({ ...s, models: next }));
   };
 
   const resting = useMemo(() => frameOf(match.world), [match.world]);
@@ -181,6 +181,24 @@ export function Game() {
   const [muted, setMuted] = useState(false);
   useEffect(() => {
     setMuted(restoreMute());
+  }, []);
+
+  /*
+   * The remembered opponent and pens, applied once on mount and for the same reason the mute is
+   * applied in an effect rather than read while rendering.
+   *
+   * Only ever applied to a match with nothing played in it, which on mount it always is. The guard
+   * is there because a restore that could land mid-match would be a restore that changes who is
+   * holding a pen while somebody is aiming it.
+   */
+  useEffect(() => {
+    const stored = readSetup();
+    if (!stored) return;
+    setState((s) =>
+      s.match.shots === 0 && !s.match.result
+        ? { ...s, opponent: stored.opponent, models: stored.models }
+        : s,
+    );
   }, []);
 
   /*

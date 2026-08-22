@@ -344,6 +344,15 @@ trade: letting it collapse resizes the desk on the first flick of every match.
 
 Adding a control to that block means deciding when it is absent, not only what it does.
 
+**The choices are remembered, so they are made once rather than every visit.** `lib/setup.ts` keeps
+the opponent and the two pens in `localStorage` beside the mute, and it is written from the handler
+that made the choice rather than from an effect watching the value. A write that runs because a
+render happened is a write that can run before the first read, and what it would save over the
+remembered choices is the defaults. Reading is the mirror of the mute: applied in an effect and
+never during render, because the server has no storage and the first paint has to agree with the
+markup it hydrates. Everything read back is checked against the catalogue and the level names,
+since storage is the one input to this app a person can edit by hand.
+
 ### The panel grows, it does not appear
 
 The choices open on a 300ms height animation rather than popping into place. Its height comes from a
@@ -466,6 +475,7 @@ lib/
     grain.ts            the desk's texture, one noise tile built once
     confetti.ts         the burst a win draws
     arena.ts            the whole scene, plus the desk-to-pixels mapping
+  setup.ts              the remembered opponent and pens, checked on the way back in
   site.ts               name, description and origin. One place
   utils.ts              cn()
 scripts/verify.mjs      drives the built app in a real browser

@@ -898,6 +898,20 @@ try {
     const labels = [...document.querySelectorAll('input[type="radio"][name^="pen-"]')].map(
       (el) => (el.parentElement ?? el).getBoundingClientRect(),
     );
+  /*
+   * And the choices outlive the page, the way the mute does. A setup that has to be made again on
+   * every visit is a setup nobody makes twice.
+   */
+  await page.reload({ waitUntil: "networkidle0" });
+  await page.waitForSelector("canvas");
+  await new Promise((r) => setTimeout(r, 400));
+  const reloaded = await heldPens();
+  check(
+    "the chosen pens survive a reload",
+    reloaded.you[0] === traded.you[0] && reloaded.them[0] === traded.them[0],
+    `you ${reloaded.you.join(",")}, them ${reloaded.them.join(",")}`,
+  );
+
     const lowest = Math.max(...labels.map((r) => r.bottom));
     return { lowest, viewport: window.innerHeight };
   });
