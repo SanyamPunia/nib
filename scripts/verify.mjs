@@ -485,6 +485,88 @@ try {
   );
 
   /*
+   * A collision makes a noise, and this is the only check that can see it.
+   *
+   * The clip that plays is chosen at random, so the assertion is that one played at all and that it
+   * played quietly. Loudness is the point of the feature and the easiest thing to get wrong, so the
+   * gain every knock is given is read back rather than trusted.
+   *
+   * The pull is ten centimetres, not the six used above. Six runs out after twelve and a half
+   * centimetres against a seventeen centimetre gap, so it never reaches the other pen and there is
+   * nothing to hear. Anything that retunes the deceleration or the top speed has to keep this pull
+   * landing, or the check passes by never colliding.
+   */
+  await page.reload({ waitUntil: "networkidle0" });
+  await page.waitForSelector("canvas");
+  await new Promise((r) => setTimeout(r, 300));
+
+  const audioReady = await page.evaluate(async () => {
+    const served = await Promise.all(
+      [1, 9].map(async (n) => {
+        const response = await fetch(`/sound/knock-${n}.mp3`);
+        return { ok: response.ok, type: response.headers.get("content-type") ?? "" };
+      }),
+    );
+    /*
+     * Keep the nodes rather than patching `AudioParam`. Every parameter in the graph goes through
+     * that one setter, so watching it reported the pitch detune as a gain and the check read 0.94
+     * for a knock playing at 0.32.
+     */
+    window.__sources = [];
+    window.__gainNodes = [];
+    const startedAt = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function patched(...args) {
+      window.__sources.push(this);
+      return startedAt.apply(this, args);
+    };
+    const createGain = AudioContext.prototype.createGain;
+    AudioContext.prototype.createGain = function patched(...args) {
+      const node = createGain.apply(this, args);
+      window.__gainNodes.push(node);
+      return node;
+    };
+    return served;
+  });
+  check(
+    "the knock recordings are served",
+    audioReady.every((r) => r.ok && r.type.includes("audio")),
+    audioReady.map((r) => `${r.ok} ${r.type}`).join(", "),
+  );
+
+  const hardHold = at(-START_OFFSET, 0);
+  const hardPull = at(-START_OFFSET - 10, 0);
+  await page.mouse.move(hardHold.x, hardHold.y);
+  await page.mouse.down();
+  await page.mouse.move(hardPull.x, hardPull.y, { steps: 10 });
+  await page.mouse.up();
+  await page.waitForFunction(
+    () => {
+      const text = (document.querySelector("[data-status]")?.textContent ?? "").toLowerCase();
+      return text.includes("wins") || text.includes("brick");
+    },
+    { timeout: 15000 },
+  );
+  await new Promise((r) => setTimeout(r, 1200));
+
+  const heard = await page.evaluate(() => ({
+    knocks: window.__sources?.length ?? 0,
+    gains: (window.__gainNodes ?? []).map((n) => n.gain.value),
+    rates: (window.__sources ?? []).map((n) => n.playbackRate.value),
+  }));
+  check("a collision is heard", heard.knocks > 0, `${heard.knocks} knock(s) played`);
+  check(
+    "and it is played quietly",
+    heard.gains.length > 0 && heard.gains.every((v) => v > 0 && v <= 0.32),
+    heard.gains.map((v) => v.toFixed(3)).join(", ") || "no gain was set",
+  );
+  /* The pitch is nudged per knock so nine recordings do not read as nine recordings. */
+  check(
+    "the knock is detuned rather than played twice the same",
+    heard.rates.length > 0 && heard.rates.every((v) => v !== 1 && v > 0.9 && v < 1.1),
+    heard.rates.map((v) => v.toFixed(3)).join(", "),
+  );
+
+  /*
    * Where the pen is taken hold of has to change the shot, and the only honest way to check the
    * offset is plumbed all the way through is to play the same pull twice from two places and
    * see two different desks. Both pulls are five centimetres, which is under the cap at either
@@ -790,6 +872,7 @@ try {
   check("a closed panel takes up no room at all", (await panelState())?.height === 0);
   const opened = (await openSetup()) && (await panelSettled());
   check("opening it shows the choices", opened && (await choicesShown()));
+
   await page.evaluate(() => {
     const done = [...document.querySelectorAll("button")].find((el) =>
       (el.textContent ?? "").trim().toLowerCase().includes("done"),
@@ -798,6 +881,23 @@ try {
   });
   await panelSettled();
   check("closing it puts them away", !(await choicesShown()));
+
+  /*
+   * Listen in before the deciding flick. This one is pulled towards the other pen, so the pen goes
+   * at its own edge and never touches anything: the win sound should be the only sound in it. The
+   * win clip is the only stereo one in `public/sound/`, which is what tells the two apart here.
+   */
+  await page.evaluate(() => {
+    window.__played = [];
+    const startedAt = AudioBufferSourceNode.prototype.start;
+    AudioBufferSourceNode.prototype.start = function patched(...args) {
+      window.__played.push({
+        channels: this.buffer?.numberOfChannels ?? 0,
+        seconds: this.buffer?.duration ?? 0,
+      });
+      return startedAt.apply(this, args);
+    };
+  });
 
   const endHold = at(-START_OFFSET, 0);
   const endPull = at(-START_OFFSET + 12, 0);
@@ -814,6 +914,35 @@ try {
   );
   await new Promise((r) => setTimeout(r, 1600));
   check("a finished match still offers the setup, still collapsed", !(await choicesShown()));
+
+  const sounded = await page.evaluate(() => window.__played ?? []);
+  const wins = sounded.filter((s) => s.channels === 2);
+  check(
+    "a win is sounded",
+    wins.length === 1,
+    `${wins.length} win sound(s), ${sounded.length} total`,
+  );
+  check(
+    "and a shot that hits nothing knocks nothing",
+    sounded.length === wins.length,
+    sounded.map((s) => `${s.channels}ch ${s.seconds.toFixed(2)}s`).join(", "),
+  );
+
+  /*
+   * The win sound must not play again when the window changes size. Its effect re-runs whenever the
+   * paint callback changes identity, which a resize does, and a win that replayed every time the
+   * window was dragged would be the obvious bug in this feature.
+   */
+  await page.setViewport({ width: 1180, height: 800, deviceScaleFactor: 2 });
+  await new Promise((r) => setTimeout(r, 600));
+  await page.setViewport({ width: 1280, height: 860, deviceScaleFactor: 2 });
+  await new Promise((r) => setTimeout(r, 600));
+  const afterResize = await page.evaluate(() => (window.__played ?? []).length);
+  check(
+    "resizing the window does not sound the win again",
+    afterResize === sounded.length,
+    `${afterResize} sounds after resizing, ${sounded.length} before`,
+  );
 
   const askedAgain = await page.evaluate(() => {
     const again = [...document.querySelectorAll("button")].find((el) =>

@@ -8,7 +8,7 @@ import { LEVEL_NAMES, type LevelName } from "@/lib/bot/levels.ts";
 import { applyShot, type Match, newMatch, other } from "@/lib/match/rules.ts";
 import { distinctFrom, PEN_DOT, PENS, type PenId } from "@/lib/pens.ts";
 import { frameOf } from "@/lib/sim/frame.ts";
-import type { Frame, Side } from "@/lib/sim/types.ts";
+import type { Frame, Impact, Side } from "@/lib/sim/types.ts";
 import { cn } from "@/lib/utils.ts";
 import { Arena } from "./arena.tsx";
 import { PenPicker } from "./pen-picker.tsx";
@@ -39,8 +39,8 @@ const OPPONENT_LABEL: Record<Opponent, string> = {
 interface State {
   /** The match on this screen. */
   match: Match;
-  /** The shot being animated, and the position it commits to once it has finished. */
-  playing: { frames: readonly Frame[]; next: Match } | null;
+  /** The shot being animated, its collisions, and the position it commits to when it finishes. */
+  playing: { frames: readonly Frame[]; impacts: readonly Impact[]; next: Match } | null;
   opponent: Opponent;
   models: Record<Side, PenId>;
 }
@@ -104,7 +104,11 @@ export function Game() {
       if (!applied.ok) return;
       setState((s) => ({
         ...s,
-        playing: { frames: applied.shot.frames, next: applied.match },
+        playing: {
+          frames: applied.shot.frames,
+          impacts: applied.shot.impacts,
+          next: applied.match,
+        },
       }));
     },
     [match, playing, result],
@@ -124,7 +128,14 @@ export function Game() {
         const shot = chooseShot(s.match.world, BOT, s.opponent, s.match.shots);
         const applied = applyShot(s.match, shot);
         if (!applied.ok) return s;
-        return { ...s, playing: { frames: applied.shot.frames, next: applied.match } };
+        return {
+          ...s,
+          playing: {
+            frames: applied.shot.frames,
+            impacts: applied.shot.impacts,
+            next: applied.match,
+          },
+        };
       });
     }, BOT_PAUSE);
     return () => clearTimeout(timer);
@@ -193,6 +204,7 @@ export function Game() {
         <Arena
           resting={resting}
           playback={playing?.frames ?? null}
+          impacts={playing?.impacts ?? null}
           turn={match.turn}
           interactive={!playing && !result && !botTurn}
           models={models}

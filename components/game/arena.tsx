@@ -14,8 +14,9 @@ import { makeBurst } from "@/lib/draw/confetti.ts";
 import { PENS, type PenId } from "@/lib/pens.ts";
 import { MIN_LAUNCH_SPEED, PEN_DIAMETER, PEN_LENGTH } from "@/lib/sim/constants.ts";
 import { maxSpeedAt } from "@/lib/sim/pen.ts";
-import type { Frame, Side } from "@/lib/sim/types.ts";
+import type { Frame, Impact, Side } from "@/lib/sim/types.ts";
 import { closestOnAxis, length } from "@/lib/sim/vec.ts";
+import { playKnock, playWin, primeSounds } from "@/lib/sound/sounds.ts";
 
 /** Centimetres per second of launch speed per centimetre pulled back. */
 const DRAG_TO_SPEED = 17;
@@ -40,6 +41,8 @@ interface ArenaProps {
   resting: Frame;
   /** A shot to play through. Playing one locks out input until it finishes. */
   playback: readonly Frame[] | null;
+  /** The collisions in that shot, to be heard on the frames they happened on. */
+  impacts: readonly Impact[] | null;
   /** Whose flick it is, and so which pen can be taken hold of. */
   turn: Side;
   interactive: boolean;
@@ -91,6 +94,7 @@ interface Drag {
 export function Arena({
   resting,
   playback,
+  impacts,
   turn,
   interactive,
   models,
@@ -107,6 +111,8 @@ export function Arena({
   const aimRef = useRef<Aim | null>(null);
   const dragRef = useRef<Drag | null>(null);
   const burstRef = useRef<Celebration | null>(null);
+  /** Which win has already been sounded, so a redraw cannot play it a second time. */
+  const soundedRef = useRef<string | null>(null);
   /*
    * The chosen models and whose flick it is are read through refs so `paint` keeps no
    * dependencies. It is called from the pointer handlers and from both animation loops, and a
@@ -328,9 +334,24 @@ export function Arena({
     dragRef.current = null;
     let raf = 0;
     const started = performance.now();
+    /* How many of this shot's collisions have been heard, so none plays twice. */
+    let heard = 0;
 
     const tick = (now: number) => {
       const index = Math.floor((now - started) / FRAME_MS);
+      /*
+       * Before the end check, and a loop rather than one test, because a slow frame moves the index
+       * on by more than one and the collisions it stepped over still happened. The last frames of a
+       * shot are skipped that way often enough that a knock tested only against the current index
+       * would go missing on exactly the shot that decided the match.
+       */
+      const list = impacts;
+      if (list) {
+        while (heard < list.length && (list[heard]?.frame ?? Infinity) <= index) {
+          playKnock(list[heard]?.strength ?? 0);
+          heard++;
+        }
+      }
       if (index >= playback.length) {
         const last = playback.at(-1);
         if (last) show(last);
@@ -344,16 +365,28 @@ export function Arena({
 
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
-  }, [playback, onPlaybackEnd, show]);
+  }, [playback, impacts, onPlaybackEnd, show]);
 
   /*
-   * The burst. It starts when a winner appears, which is after the shot that decided it has
-   * finished playing, so it never overlaps the animation of its own cause.
+   * The burst, and the one sound that goes with it. Both start when a winner appears, which is after
+   * the shot that decided it has finished playing, so neither overlaps the animation of its own
+   * cause.
    */
   useEffect(() => {
     if (!won || playback) {
       burstRef.current = null;
       return;
+    }
+    /*
+     * The burst is safe to restart and the sound is not. This effect re-runs whenever `paint`
+     * changes identity, which happens on a resize and on a theme change, and a win that played its
+     * sound again every time the window was dragged would be a bug. The burst redrawing in that
+     * case is invisible, so only the sound needs remembering.
+     */
+    const thisWin = `${won}:${wonSeed}`;
+    if (soundedRef.current !== thisWin) {
+      soundedRef.current = thisWin;
+      playWin();
     }
     const flecks = makeBurst(wonSeed * 2654435761 + (won === "a" ? 1 : 2), BURST_COUNT);
     const started = performance.now();
@@ -383,6 +416,12 @@ export function Arena({
      * pointer id, the next move carried on measuring from that stale grab point.
      */
     endDrag(false);
+    /*
+     * The press is the gesture that lets the page make a noise, and it is a second or two ahead of
+     * the earliest collision it could be needed for. It runs before the checks below because a
+     * press that misses the pen is still a press.
+     */
+    primeSounds();
     if (!interactive || playback) return;
     const point = pointAt(event.clientX, event.clientY);
     if (!point) return;
