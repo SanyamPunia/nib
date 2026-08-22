@@ -47,6 +47,15 @@ Everything the game needs is written in this repository.
   function the desk uses so a preview cannot drift from what it advertises. They differ in markings
   only, never in size or mass: the drawing must not lie about the collision shape, and both players
   have to be playing the same game.
+- **The sound.** Two noises, the pens meeting and winning. The knock is one of nine recordings
+  picked at random and nudged a few percent off pitch, so the same clip twice does not read as the
+  same collision twice, and its volume comes from the impulse the simulation measured. The
+  simulation also says which frame each collision landed on, so a knock is heard on the frame it is
+  drawn on. Every clip is trimmed to its transient and normalised on the way in: the knocks arrived
+  with between 65ms and 175ms of leading silence, a spread that would have read as the sound being
+  broken rather than late, and the win arrived 11dB quieter than the rest. Trimming happens in the
+  decoded samples, because the containers understate their own length and every approach that
+  trusted them destroyed a clip while leaving it playable.
 - **The picture.** No animation library and no 3D. Depth is a gradient across a pen's short axis and
   a shadow under it. The desk has a grain built from one noise tile generated from a fixed seed, so
   it is the same on every machine and does not reshuffle when the window resizes. On a tall screen

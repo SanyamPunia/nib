@@ -325,10 +325,56 @@ Anything that measures the footer, the canvas, or a pen's position has to wait o
 first. `pnpm verify` has a `panelSettled()` for exactly that, and stale measurements have bitten
 that file more than any other mistake.
 
+**The button is the fixed point, so the footer is `justify-end` and never `justify-center`.**
+Centring the stack meant the slack around the button shrank as the panel grew, which slid the button
+6px down the screen as it opened, measured at both viewports. The one control on the screen has to
+stay exactly where it was pressed. The footer keeps `min-h-14` so the closed height is unchanged and
+a fixed `pb-2.5` so the button's distance from the bottom edge cannot vary, and the space the panel
+needs comes out of the desk above it. `verify.mjs` asserts the button's box is identical open and
+closed.
+
+**The content fades and lifts in, on two timings rather than one.** Opening waits 100ms before the
+content settles in over 200ms, so the desk has started giving the room up before anything appears in
+it. Closing runs at once over 150ms, so the content is gone before the space shuts behind it. One
+symmetric transition reads as the panel dragging its contents around with it. Both directions are
+branched class strings on the inner box, and both are off under `motion-reduce`.
+
+### One question, two kinds of answer
+
+The opponent row is a person or the bot, and the bot has three strengths. Those were four chips in
+one row, which read as four opponents of the same kind and made "Two players" look like a fourth
+difficulty. They are now split by a hairline rule, with `UsersIcon` on the person and `BotIcon`
+marking the three strengths.
+
+Two details in that are deliberate. The rule is an element, never a glyph, per the shared rules. And
+the three strengths sit in their own box at `gap-1` inside a row at `gap-2`, because at one gap the
+bot icon sat nearer "Easy" than the rule and read as part of that chip rather than as a label for all
+three.
+
+It stays **one** radiogroup. The split is how it looks, not what it is: exactly one of the four is
+the opponent, and a screen reader should hear one choice, not two.
+
+### The pen catalogue is one row, at every width
+
+Six columns on a phone, one flex row above `sm`. It was three by two, which cost a row of footer
+height and left the catalogue far narrower than the opponent row above it, so two centred groups had
+visibly different left edges. On a 390px phone the change takes the footer from 192px to 157px and
+hands those 35px to the desk.
+
+**The preview's backing store is always the desktop size, and CSS is what shrinks it.** Drawing
+smaller would mean a second scale to keep in step with the desk's own. Scaling a larger drawing down
+is supersampling, so the phone gets the sharper preview of the two.
+
+**A grid, and a capped width rather than a fixed one.** Free wrapping put five previews on one line
+and the sixth alone underneath, which reads as an accident. A fixed width overflows a 320px screen.
+Six columns of `w-full max-w-11` shrink to whatever they are given, so the row cannot wrap and cannot
+overflow: checked at 320px as well as 390px.
+
 ## Architecture
 
 ```
 app/                    layout, page, globals.css, icon.svg
+public/sound/           nine knock recordings and the win, normalised and trimmed
 components/
   game/                 the one feature
     arena.tsx           the canvas, its pointer handling and its playback loop
@@ -350,6 +396,7 @@ lib/
   bot/                  the opponent. Pure, no React
     levels.ts           the three difficulties
     choose.ts           draw candidate flicks, roll them out, keep the best
+  sound/sounds.ts       the nine knocks and the win, on one audio context
   draw/                 canvas drawing. No React
     colors.ts           the palette, read off the page
     grain.ts            the desk's texture, one noise tile built once
@@ -455,6 +502,74 @@ animation of its own cause. `verify.mjs` checks both that it appears and that it
 
 Accent is spent here and nowhere else. If a second flourish is ever wanted, take it from this one
 rather than adding to it.
+
+## Sound
+
+Two noises. The pens meeting, and winning. No launch sound, no sound for a pen going off, no music.
+
+**The sim says when, not the browser.** `step` returns the normal impulse on the step a contact
+begins, `run.ts` turns that into `ShotResult.impacts` as a frame index plus a strength, and the
+playback loop plays a knock when it passes that frame. The browser cannot work this out for itself:
+it only ever sees poses, and two pens a millimetre apart on one frame and touching on the next look
+identical from outside. The step that resolved the contact runs at 480Hz and the frames it is drawn
+on run at 60.
+
+**A collision is its onset, not its duration.** One collision spans more than one step, because the
+overlap it leaves is corrected over the next few, so the pens are still touching while that happens.
+Measured across every legal flick, the longest contact in the game is three steps. Without
+`Manifold.touching` each of those reports its own impulse and one knock is heard three times. The
+`touching` flag is not an optimisation, it is what makes an impact mean a collision.
+
+**Strength is derived, not tuned.** The impulse over `PEN_MASS * MAX_LAUNCH_SPEED`, which is the
+largest momentum a pen can carry, so retuning either constant carries through. There is a floor
+under it, because two pens settling exchange a tiny impulse that nobody saw happen.
+
+**The loudness curve was measured, and this is the part that would be got wrong.** Impact strength
+across every legal flick runs from 1.5% to 49% with a median of 12%, so mapping the full 0 to 1
+range onto a volume range leaves every real collision whispering. `LOUD_AT` is the 95th percentile
+of real hits rather than the theoretical maximum. Anything retuning the physics should re-measure it.
+
+**The clips were trimmed to their transient before anything else.** They arrived with between 65ms
+and 175ms of leading silence. Late is bad on its own, and a spread between clips is worse: a knock
+that lands at a different delay each time reads as broken rather than late. They now start within
+3ms of each other. Anything added to `public/sound/` gets the same treatment.
+
+**Trim in the decoded samples, never by seeking.** These files' containers lie about their own
+length, by ten to thirty milliseconds and in one case by more, and two ffmpeg approaches that
+trusted them both silently destroyed clips: `-to` before `-i` cut one to 60ms of its 139ms, and a
+`-ss` seek landed 78ms past where it was asked to, straight through the transient the trim exists to
+protect. Decode to PCM, find the first sample over the floor, cut there, and assert afterwards that
+every clip still starts where it should. The assertion is the part that matters, because both
+failures produced playable files that passed every other check.
+
+**Every clip is normalised to about a decibel under full scale on the way in, so the gain constants
+are the whole volume control and mean the same thing as each other.** The win sound arrived 11dB
+quieter than the knocks. Playing it at a gain of 1 would have sounded about right and left the
+codebase with two scales that read alike and are not, which is how a balance drifts the next time
+either is touched. It was lifted on encode instead.
+
+**The win sounds once per win, and the guard for that is not decoration.** Its effect re-runs
+whenever the paint callback changes identity, which a resize and a theme change both do. The burst
+restarting there is invisible; the sound restarting is the obvious bug in the feature. A ref holds
+which win has been sounded, and `verify.mjs` resizes the window after a win and asserts nothing
+played again.
+
+**The pitch is nudged a few percent per knock.** Nine recordings in a game that knocks several times
+a match is few enough to notice, and the detune is what makes the same clip twice sound like two
+collisions. `verify.mjs` asserts the rate is never exactly 1.
+
+**It fails silently, everywhere.** No Web Audio, a clip that will not fetch, a context the platform
+refuses to start: every one of them is caught and dropped. Sound is the last thing in this product
+that should be able to break a loop that is drawing the game.
+
+**The context is built on the first press, not on load.** A browser wants a gesture before a page
+may make a noise, and the press that grabs a pen is a second or two ahead of the earliest collision
+it could be needed for. Decoding nine files after the pens have already met would miss the knock it
+was decoding for.
+
+**There is no mute control.** Nobody asked for one and the footer has been rebuilt enough times
+already. If one is wanted, the argument against putting it in the setup panel is that the panel only
+appears before a match and after one, so it could not silence the match you are in.
 
 ## On a phone the camera turns, not the desk
 

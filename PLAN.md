@@ -35,21 +35,29 @@ for the rules this works under.
 - **It plays on a phone.** The picture turns a quarter turn on a tall screen while the simulation
   stays exactly as it was, touch targets have a floor in pixels, and the footer stacks. Checked at a
   phone viewport in `pnpm verify`, including that a pen can be taken hold of and flicked there.
+- **The opponent reads as two kinds of choice.** A person in the room on one side of a hairline, the
+  bot's three strengths on the other, each marked with its own icon. One radiogroup still.
 - **The settings only appear before a match.** They go away on the first flick and stay away on a
   result, which offers one thing: another match. That brings them back.
 - **The footer is organised.** Match state on its own line, settings below it in an aligned
   label-and-control grid.
 - **A win is celebrated.** A short burst of slivers in the winner's colours, from the middle of
   the desk. It clears itself.
+- **A collision makes a noise.** Nine recordings, picked at random and detuned a few percent, at a
+  volume taken from the impulse the sim measured. The sim reports which frame each collision landed
+  on, so the knock is heard on the frame it is drawn on.
+- **A win makes one too.** It starts with the burst, so neither overlaps the shot that caused them,
+  and it plays once per win however many times the window is resized under it.
 - **The gates.** `pnpm check` for lint, types, tests and build. `pnpm verify` drives the built app in
   Chrome and asserts forty-odd things a unit test cannot see, at a desktop and a phone viewport.
 
 ## Next, in order
 
-1. **Sound.** Three clips: the flick, pen against pen, and a pen going off. Turn-based play
-   with a one to two second resolution is the best possible case for audio carrying weight,
-   and the collision already knows its own impulse, so the hit can be scaled by how hard it
-   was.
+1. **The last two sounds.** Pen against pen and winning are built, see below. The flick itself and
+   a pen going off the edge are not, and both are the same shape of work: the sim already knows when
+   a shot is launched and when `checkOut` fires, so each needs an event out of `run.ts` and a clip.
+   The launch is the harder call of the two, because it happens under the player's own hand and a
+   sound there can feel like lag.
 
 2. **Replay in a link.** The strongest idea left. The simulation is deterministic
    and a shot is four numbers, so a whole match is a handful of bytes: the side that started
