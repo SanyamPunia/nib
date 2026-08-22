@@ -215,7 +215,14 @@ export function Game() {
         />
       </div>
 
-      <footer className="flex min-h-14 w-full shrink-0 flex-col items-center justify-center gap-3 px-3 pb-1">
+      {/*
+       * `justify-end` and a fixed bottom padding, never `justify-center`. Centring the stack meant
+       * the slack around the button shrank as the panel grew, so opening the panel slid the button
+       * 6px down the screen. The one control on the screen has to stay exactly where it was pressed:
+       * the space comes out of the desk above, which is the whole idea, and the button is the fixed
+       * point the panel opens from.
+       */}
+      <footer className="flex min-h-14 w-full shrink-0 flex-col items-center justify-end gap-3 px-3 pb-2.5">
         {canSetUp ? (
           <>
             {/*
@@ -247,7 +254,21 @@ export function Game() {
                * but still scrollable. Positioning the clip makes it their containing block.
                */}
               <div className="relative min-h-0 overflow-hidden">
-                <div className="flex justify-center pb-1">
+                {/*
+                 * The content fades and lifts into the space rather than being revealed by the clip
+                 * alone. Opening waits for the desk to give the room up before it settles in;
+                 * closing goes first and lets the space shut behind it. Two directions, two
+                 * timings, which is why these are branched rather than one transition.
+                 */}
+                <div
+                  className={cn(
+                    "flex justify-center pb-1 transition-[opacity,transform] ease-out",
+                    "motion-reduce:transition-none motion-reduce:translate-y-0",
+                    setupOpen
+                      ? "translate-y-0 opacity-100 delay-100 duration-200"
+                      : "translate-y-1 opacity-0 delay-0 duration-150",
+                  )}
+                >
                   <div className="flex flex-col items-center gap-3 sm:grid sm:grid-cols-[auto_1fr] sm:items-center sm:gap-x-4 sm:gap-y-2">
                     <div className="flex flex-col items-center gap-1 sm:contents">
                       <span

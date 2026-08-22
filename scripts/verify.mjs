@@ -870,9 +870,53 @@ try {
    * to nothing visually here but leaves the panel holding the page taller than the window.
    */
   check("a closed panel takes up no room at all", (await panelState())?.height === 0);
+  /*
+   * Where the one control sits, so opening the panel can be shown not to move it. The footer used to
+   * centre its stack, which shrank the slack around the button as the panel grew and slid it 6px
+   * down the screen. It is the only thing on the screen to press, and it has to stay under the
+   * finger that pressed it.
+   */
+  const triggerBox = () =>
+    page.evaluate(() => {
+      const el = [...document.querySelectorAll("button")].find((b) =>
+        b.hasAttribute("aria-expanded"),
+      );
+      if (!el) return null;
+      const r = el.getBoundingClientRect();
+      return { top: Math.round(r.top), left: Math.round(r.left), h: Math.round(r.height) };
+    });
+  const deskHeight = () =>
+    page.evaluate(() => {
+      const c = document.querySelector("canvas");
+      return c ? Math.round(c.getBoundingClientRect().height) : 0;
+    });
+  const boxClosed = await triggerBox();
+  const deskClosed = await deskHeight();
+
   const opened = (await openSetup()) && (await panelSettled());
   check("opening it shows the choices", opened && (await choicesShown()));
 
+  const boxOpen = await triggerBox();
+  check(
+    "and opening it does not move the control that opened it",
+    !!boxClosed &&
+      !!boxOpen &&
+      boxClosed.top === boxOpen.top &&
+      boxClosed.left === boxOpen.left &&
+      boxClosed.h === boxOpen.h,
+    `${JSON.stringify(boxClosed)} then ${JSON.stringify(boxOpen)}`,
+  );
+  /*
+   * The room has to come from the desk, or the panel is pushing the page off the bottom instead.
+   * Measured against the desk as it was a moment ago, never against a number written here: this file
+   * has held a stale copy of an arena measurement three times, and each time it passed anyway.
+   */
+  const deskOpen = await deskHeight();
+  check(
+    "the desk is what gives up the room",
+    deskClosed > 0 && deskOpen > 0 && deskOpen < deskClosed,
+    `${deskClosed}px of desk closed, ${deskOpen}px open`,
+  );
   await page.evaluate(() => {
     const done = [...document.querySelectorAll("button")].find((el) =>
       (el.textContent ?? "").trim().toLowerCase().includes("done"),
