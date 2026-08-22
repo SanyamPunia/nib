@@ -14,14 +14,19 @@ export function other(side: Side): Side {
  * `knocked` and `self` are told apart because they read differently to the two players.
  * A player who put their own pen off the desk needs to be told that is what happened,
  * since a board that simply announces a loss with the other pen untouched is
- * indistinguishable from a bug.
+ * indistinguishable from a bug. `draw` needs saying for the same reason.
  */
-export type Ending = "knocked" | "self";
+export type Ending = "knocked" | "self" | "draw";
 
-export interface Result {
-  winner: Side;
-  ending: Ending;
-}
+/**
+ * How a match ended.
+ *
+ * A union rather than a nullable winner, so nothing can read `result.winner` on a draw without
+ * being asked to handle it. There is exactly one ending with no winner and it is this one.
+ */
+export type Result =
+  | { winner: Side; ending: "knocked" | "self" }
+  | { winner: null; ending: "draw" };
 
 export interface Match {
   world: World;
@@ -51,9 +56,11 @@ export type Applied =
  * out what happened. That is what lets the same function decide the result on a server and
  * predict it in a browser.
  *
- * Both pens leaving is a loss for whoever took the shot. Taking your own pen off the desk
- * alongside your opponent's is not a draw, because the player who chose the shot is the
- * only one who could have chosen a smaller one.
+ * Both pens leaving is a draw. It was a loss for whoever took the shot, on the argument that they
+ * chose the power and could have chosen less, and that argument is sound and still loses to the
+ * board. Nothing is on the desk at the end of it, so there is nobody to point at and call the
+ * winner, and handing the win to the player who was knocked off reads as a technicality to the two
+ * people looking at an empty desk.
  */
 export function applyShot(match: Match, shot: Shot): Applied {
   if (match.result) return { ok: false, reason: "match-over" };
@@ -68,7 +75,9 @@ export function applyShot(match: Match, shot: Shot): Applied {
   const opponentOut = outcome.rest[opponent].out;
 
   let result: Result | null = null;
-  if (shooterOut) {
+  if (shooterOut && opponentOut) {
+    result = { winner: null, ending: "draw" };
+  } else if (shooterOut) {
     result = { winner: opponent, ending: "self" };
   } else if (opponentOut) {
     result = { winner: shooter, ending: "knocked" };

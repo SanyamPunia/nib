@@ -50,6 +50,8 @@ for the rules this works under.
   is not on screen during the match you would want to quiet. The choice is remembered.
 - **A win makes one too.** It starts with the burst, so neither overlaps the shot that caused them,
   and it plays once per win however many times the window is resized under it.
+- **Both pens off is a draw.** One flick can take both, and there is nobody on the desk at the end
+  of it to call the winner. It is not celebrated, since a burst and a jingle belong to somebody.
 - **The gates.** `pnpm check` for lint, types, tests and build. `pnpm verify` drives the built app in
   Chrome and asserts forty-odd things a unit test cannot see, at a desktop and a phone viewport.
 
@@ -72,18 +74,12 @@ for the rules this works under.
 - **Whether the three bots are spaced right.** Easy, medium and hard differ in how many shots
   they consider and how badly their hand slips. The slip numbers were picked, not measured, and
   nobody has yet lost to hard often enough to say whether it is hard.
-- **Whether one-shotting should be reachable at all.** Top speed is set so a full opening flick stays
-  on the desk, which leaves it pushing the other pen about 4.5cm of the 11 it needs. The opening is
-  therefore always about position. That may be exactly right, or it may make the first two flicks
-  feel like a formality.
 - **Whether the offset trade is tuned right.** Holding the push's energy constant makes a tip
   flick worth about half the distance of a centre one. That ratio falls out of the pen's mass and
   inertia rather than being chosen, and it decides how often a player gives up distance for spin.
   It has not been played enough to know.
 - **A stalemate rule.** Two cautious players can flick forever. There is a shot counter on the
   match and no cap on it. A cap needs an ending that does not feel arbitrary.
-- **Both pens off.** Currently a loss for whoever took the shot, on the grounds that they
-  chose the power. A draw is the other defensible reading.
 - **Whether the arena should shrink.** The desk is 40 by 28 centimetres with the pens 18 apart
   and 11 behind each. It leaves a visible empty middle. That gap is also what makes the
   opening shot a real judgement, so it should not be closed on the strength of a screenshot.
@@ -91,6 +87,10 @@ for the rules this works under.
 - **Restitution.** 0.35 gives the struck pen about four times the slide of the pen that hit
   it, which makes a clean knock-off comfortably achievable without following your own pen off.
   It has not been checked against a real pen on a real desk.
+
+## Settled
+
+- **Both pens off is a draw,** not a loss for whoever took the shot. See `CLAUDE.md`.
 
 ## Deliberate omissions
 

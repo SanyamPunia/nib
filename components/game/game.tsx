@@ -149,7 +149,8 @@ export function Game() {
   }, [opponent, playing, result, state.match]);
 
   const startMatch = (next: Opponent) => {
-    const first = result ? other(result.winner) : YOU;
+    /* The loser starts. On a draw nobody lost, so it goes to whoever did not take the last shot. */
+    const first = result ? other(result.winner ?? match.turn) : YOU;
     setState((s) => ({ ...s, match: newMatch(first), playing: null, opponent: next }));
   };
 
@@ -200,7 +201,18 @@ export function Game() {
     <main className="safe-area flex h-dvh flex-col items-center">
       <div className="flex h-16 shrink-0 items-end gap-3 pb-2 text-sm text-ink">
         <span data-status className="flex h-7 items-center gap-2">
-          {winner ? (
+          {result?.ending === "draw" ? (
+            <>
+              {/*
+               * Both pens, because a draw belongs to both of them. And it says why: an empty desk
+               * announcing a result with no winner is the same shape of confusion a self knock is,
+               * which is why that one carries its reason too.
+               */}
+              <Dot pen={models.a} />
+              <Dot pen={models.b} />
+              <span>a draw, both pens off</span>
+            </>
+          ) : winner ? (
             <>
               <Dot pen={models[winner]} />
               <span>

@@ -127,6 +127,30 @@ On a portrait screen the desk is limited by width and leaves room above and belo
 inherent to a landscape arena and is not worth fixing by shrinking the desk on every other
 screen.
 
+## Both pens off is a draw
+
+One flick can take both. It used to be a loss for whoever played it, on the argument that they
+chose the power and could have chosen less. That argument is sound and it still loses to the board:
+there is nothing on the desk at the end of it, so there is nobody to point at, and handing the win
+to the player who was knocked off reads as a technicality to the two people looking at an empty
+desk.
+
+Three things follow, and the second is the one that would be missed.
+
+**`Result` is a union, not a nullable winner.** `{ winner: Side; ending: "knocked" | "self" }` or
+`{ winner: null; ending: "draw" }`, so nothing can read `result.winner` without being made to handle
+the ending that has none.
+
+**The bot had to be told.** `scoreOf` checks losing before winning, on purpose, because taking both
+pens off used to be a loss. Left alone it would still be scoring a draw as the worst thing on the
+board and refusing shots that are merely level. `DRAW` is zero, which sits below any position with
+both pens comfortably on the desk and above one where its own pen is on an edge, so it never takes
+a draw it did not need and takes one when it is losing.
+
+**A draw is not celebrated.** No burst and no win sound, because both belong to a winner. The
+caption says why it ended, the way a self knock does, since a finished match with an empty desk and
+no explanation is indistinguishable from a bug.
+
 ## The pen goes the opposite way to the hand
 
 Take hold of your pen, pull away from where you want it to go, release. A catapult, not a

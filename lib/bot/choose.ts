@@ -25,6 +25,15 @@ const AIMED_SPREAD = 0.45;
  * are out of range.
  */
 const CLOSING = 0.25;
+/**
+ * What a draw is worth, which is both pens off on one shot.
+ *
+ * It sits between the two results because that is where the rules put it. Zero is also below any
+ * position with both pens comfortably on the desk, so the bot never takes a draw it did not need,
+ * and above a position where its own pen is on an edge and the other is safe in the middle, so a
+ * bot that is losing will take one. Both of those are what a player would do.
+ */
+const DRAW = 0;
 
 /**
  * The bot is deterministic, and that is a design constraint rather than a convenience.
@@ -81,8 +90,10 @@ function edgeGap(p: Pen): number {
 /**
  * What a position is worth to `me`, after my flick has come to rest.
  *
- * Losing outranks winning, because the rules make taking both pens off a loss for whoever took
- * the shot. A bot that scored the two separately would happily trade its own pen for the win.
+ * Losing outranks winning, and the order of the three tests below is the whole of that. Taking both
+ * pens off used to be a loss for whoever took the shot, which is why losing is checked first. It is
+ * a draw now, and a bot that had not been told would still be reading it as the worst thing on the
+ * board and refusing shots that are merely level.
  *
  * Short of a result it is three terms: how close the other pen has been pushed to an edge, how
  * much room mine has left, and how far apart the two ended up. Their danger is worth twice my
@@ -93,6 +104,7 @@ function edgeGap(p: Pen): number {
 function scoreOf(rest: World, me: Side): number {
   const mine = rest[me];
   const theirs = rest[other(me)];
+  if (mine.out && theirs.out) return DRAW;
   if (mine.out) return -1000;
   if (theirs.out) return 1000;
   const reach = Math.min(ARENA_WIDTH, ARENA_HEIGHT) / 2;

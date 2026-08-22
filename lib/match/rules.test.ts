@@ -52,7 +52,7 @@ test("putting your own pen off loses, and says so", () => {
   assert.deepEqual(applied.match.result, { winner: "b", ending: "self" });
 });
 
-test("taking both pens off is a loss for whoever took the shot", () => {
+test("taking both pens off is a draw", () => {
   const m = newMatch();
   /* Full power from right behind b, so a follows it over the edge. */
   m.world.a.x = ARENA_WIDTH / 2 - 3;
@@ -61,7 +61,21 @@ test("taking both pens off is a loss for whoever took the shot", () => {
   assert.ok(applied.ok);
   assert.equal(applied.shot.rest.a.out, true);
   assert.equal(applied.shot.rest.b.out, true);
-  assert.deepEqual(applied.match.result, { winner: "b", ending: "self" });
+  assert.deepEqual(applied.match.result, { winner: null, ending: "draw" });
+});
+
+test("a draw ends the match like any other result", () => {
+  const m = newMatch();
+  m.world.a.x = ARENA_WIDTH / 2 - 3;
+  m.world.b.x = ARENA_WIDTH / 2 - 1.5;
+  const drawn = applyShot(m, shot({ vx: 200 }));
+  assert.ok(drawn.ok);
+
+  /* No further flicks, and the turn stays where it was, as it does for a win. */
+  const after = applyShot(drawn.match, shot({ side: drawn.match.turn, vx: 20 }));
+  assert.equal(after.ok, false);
+  assert.ok(!after.ok && after.reason === "match-over");
+  assert.equal(drawn.match.turn, "a");
 });
 
 test("a finished match refuses further flicks", () => {
