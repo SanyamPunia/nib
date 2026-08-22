@@ -375,6 +375,7 @@ overflow: checked at 320px as well as 390px.
 ```
 app/                    layout, page, globals.css, icon.svg
 public/sound/           nine knock recordings and the win, normalised and trimmed
+public/brand/           the mark on its own, for anywhere outside the app
 components/
   game/                 the one feature
     arena.tsx           the canvas, its pointer handling and its playback loop
@@ -503,6 +504,25 @@ animation of its own cause. `verify.mjs` checks both that it appears and that it
 Accent is spent here and nowhere else. If a second flourish is ever wanted, take it from this one
 rather than adding to it.
 
+## The mark
+
+`app/icon.svg` is the favicon: the mark on a rounded dark square, which is what a browser tab wants.
+`public/brand/` holds the same drawing with no ground, for anywhere the app is not: an OG image, a
+README, a slide.
+
+- `mark-on-dark.svg` carries the pens' dark-theme colours, which is what the favicon uses.
+- `mark-on-light.svg` carries their light-theme colours. A pen is not the same hue at two
+  brightnesses in this project, so a mark for a light ground is a different file rather than the same
+  one dimmed.
+- `mark-mono.svg` is one `currentColor`, for a ground neither of those suits.
+
+**Their viewBox is trimmed to the ink, not left at the favicon's 32-unit square.** The round cap on
+the barrel means the drawn area is the segment grown by half the stroke width, which with the tip
+polygon comes to `7.4 8.2 16.6 16.6`. A box with dead space around it has to be cropped by hand every
+time it is placed.
+
+Anything added here keeps that rule: no background, and a box that is exactly the ink.
+
 ## Sound
 
 Two noises. The pens meeting, and winning. No launch sound, no sound for a pen going off, no music.
@@ -567,9 +587,26 @@ may make a noise, and the press that grabs a pen is a second or two ahead of the
 it could be needed for. Decoding nine files after the pens have already met would miss the knock it
 was decoding for.
 
-**There is no mute control.** Nobody asked for one and the footer has been rebuilt enough times
-already. If one is wanted, the argument against putting it in the setup panel is that the panel only
-appears before a match and after one, so it could not silence the match you are in.
+**Silence is a control in the status row, not in the setup panel.** Two reasons, and the second is
+the one that decided it. The panel is only on screen before a match and after one, so a control in it
+could not quiet the match you are in, which is the only moment anybody reaches for one. And the
+footer holds a single thing to press on purpose. The status row already carries a control, so it is
+the honest home for a second.
+
+**The sound module owns the flag, and React mirrors it.** There is one answer for the whole page and
+the module is what has to obey it. The remembered choice is applied in an effect rather than read
+while rendering: the server has no storage, so reading it during render would make the first paint
+disagree with the markup it hydrates.
+
+Muting cuts off a win that is still sounding, because the moment somebody reaches for this is while a
+noise they did not want is coming out of the machine. Unmuting primes, since the click that did it is
+the gesture a browser wants before a page may make a noise, and that is what lets `primeSounds` skip
+the fetch entirely for somebody who arrived muted.
+
+It is icon only, so it carries a `title` as well as a label. The pen previews set that precedent:
+there is no tooltip primitive here and hand-rolling one for this would be more component than the
+control. `verify.mjs` asserts that a muted collision starts nothing at all, which is the only check
+that tells a mute from a volume of nearly zero, and that the choice survives a reload.
 
 ## On a phone the camera turns, not the desk
 

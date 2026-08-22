@@ -46,6 +46,8 @@ for the rules this works under.
 - **A collision makes a noise.** Nine recordings, picked at random and detuned a few percent, at a
   volume taken from the impulse the sim measured. The sim reports which frame each collision landed
   on, so the knock is heard on the frame it is drawn on.
+- **The sound can be turned off,** from the status row rather than the setup panel, since the panel
+  is not on screen during the match you would want to quiet. The choice is remembered.
 - **A win makes one too.** It starts with the burst, so neither overlaps the shot that caused them,
   and it plays once per win however many times the window is resized under it.
 - **The gates.** `pnpm check` for lint, types, tests and build. `pnpm verify` drives the built app in

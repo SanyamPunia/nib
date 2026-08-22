@@ -56,6 +56,8 @@ Everything the game needs is written in this repository.
   broken rather than late, and the win arrived 11dB quieter than the rest. Trimming happens in the
   decoded samples, because the containers understate their own length and every approach that
   trusted them destroyed a clip while leaving it playable.
+- **The mute.** One control in the status row, remembered between visits. Muted means nothing is
+  started at all rather than started quietly, which is what the browser check asserts.
 - **The picture.** No animation library and no 3D. Depth is a gradient across a pen's short axis and
   a shadow under it. The desk has a grain built from one noise tile generated from a fixed seed, so
   it is the same on every machine and does not reshuffle when the window resizes. On a tall screen
