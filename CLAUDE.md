@@ -512,6 +512,10 @@ type and dimensions, and mirrors the lot into the `twitter:image` tags, so nothi
 beside it carries the alt text, and its bytes are the attribute value: a trailing newline lands in
 the tag.
 
+**`og:site_name` is set even though it repeats the title.** Discord and others print it above the
+title, and a card without it reads as coming from nowhere. It is the one place saying the same word
+twice is right: the two fields answer different questions and land in different parts of the card.
+
 **There is no `twitter-image.png`.** X falls back to `og:image` when no Twitter image is given, so a
 second copy of the same 270KB would buy nothing.
 

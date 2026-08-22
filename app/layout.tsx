@@ -13,6 +13,13 @@ export const metadata: Metadata = {
     description: site.description,
     url: site.origin,
     type: "website",
+    /*
+     * Discord and a few others print this above the title, and a card without it reads as coming
+     * from nowhere. It is the same word as the title here, which is the one case where saying it
+     * twice is right: the two fields answer different questions, and the reader sees the site's name
+     * and the page's name in different places on the card.
+     */
+    siteName: site.name,
   },
   /*
    * The card image itself is `app/opengraph-image.png`, which Next finds by name and turns into
