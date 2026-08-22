@@ -521,6 +521,17 @@ the barrel means the drawn area is the segment grown by half the stroke width, w
 polygon comes to `7.4 8.2 16.6 16.6`. A box with dead space around it has to be cropped by hand every
 time it is placed.
 
+The two coloured marks also ship as transparent PNGs at 512 and 1024, for anywhere that will not
+take an SVG. `mark-mono` deliberately has none: `currentColor` has nothing to inherit from in a
+standalone raster and would flatten to black, which is a different asset rather than the same one.
+
+**Rendered with `omitBackground`, and the alpha checked afterwards rather than assumed.** Chrome
+paints white behind a screenshot without it. Each file is 26% ink and 74% clear.
+
+One thing that looks like a bug in that check and is not: the top right corner pixel is half opaque.
+The box is trimmed to the ink, so the tip polygon's own corner lands exactly there. The other three
+corners are fully clear.
+
 Anything added here keeps that rule: no background, and a box that is exactly the ink.
 
 ## Sound
