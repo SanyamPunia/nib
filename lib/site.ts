@@ -1,13 +1,19 @@
 /**
  * The name, the description and the origin, in one place.
  *
- * Metadata, the canonical link, `robots.txt` and the sitemap all read from here. Three
- * copies would be three chances to move host and forget one, and a sitemap advertising an
- * address the canonical link disagrees with is worse than no sitemap, because a crawler
- * then has to choose between them.
+ * The origin is read by `metadataBase`, which is what turns the canonical link and the card image
+ * into absolute URLs, and by `og:url`. One copy, because an origin written twice is two chances to
+ * move host and update one of them, and a card image pointing at the wrong host is a card that never
+ * renders. Anything added later that needs the origin, a sitemap or a robots file among them, reads
+ * it from here rather than restating it.
+ *
+ * `nib.game` was the origin for a while and was never bought, which meant every absolute URL in the
+ * page pointed at a host that does not resolve. Nothing in the app failed and nothing in the build
+ * complained: the canonical asked crawlers to index an address that 404s, and the card could not be
+ * fetched at all.
  */
 export const site = {
   name: "nib",
   description: "Two pens on a desk. Knock the other one off.",
-  origin: "https://nib.game",
+  origin: "https://nib.sanyam.sh",
 } as const;

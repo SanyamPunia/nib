@@ -522,6 +522,12 @@ which crops a 1200 by 630 card into a small square.
 It has no desk and no pens in it, and saying otherwise would be marking up something that is not
 there.
 
+**The origin has to be a host that resolves, and for a while it was not.** `lib/site.ts` said
+`nib.game`, which was never bought, so `metadataBase` made every absolute URL on the page point at a
+host that does not answer. Nothing failed and nothing warned: the canonical asked crawlers to index
+an address that 404s, and the card could not be fetched at all. It is `nib.sanyam.sh` now, which is
+where the game actually is.
+
 The file was re-encoded to `rgb24` before it landed. It arrived as RGBA with not one translucent
 pixel in 756,000, and dropping the dead channel took it from 418KB to 267KB with every pixel
 identical.
