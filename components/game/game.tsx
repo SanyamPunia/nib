@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button.tsx";
 import { chooseShot } from "@/lib/bot/choose.ts";
 import { LEVEL_NAMES, type LevelName } from "@/lib/bot/levels.ts";
 import { applyShot, type Match, newMatch, other } from "@/lib/match/rules.ts";
-import { distinctFrom, PEN_DOT, PENS, type PenId } from "@/lib/pens.ts";
+import { PEN_DOT, PENS, type PenId, tradedFor } from "@/lib/pens.ts";
 import { frameOf } from "@/lib/sim/frame.ts";
 import type { Frame, Impact, Side } from "@/lib/sim/types.ts";
 import { muteSounds, restoreMute } from "@/lib/sound/sounds.ts";
@@ -153,9 +153,20 @@ export function Game() {
     setState((s) => ({ ...s, match: newMatch(first), playing: null, opponent: next }));
   };
 
-  /* Cosmetic, so it never restarts a match. It does have to keep the two pens telling apart. */
-  const choosePen = (id: PenId) => {
-    setState((s) => ({ ...s, models: { a: id, b: distinctFrom(id, s.models.b) } }));
+  /*
+   * Cosmetic, so it never restarts a match. It does have to keep the two pens telling apart.
+   *
+   * Either side can be chosen for, because two people sharing a screen are two people choosing.
+   * That makes a clash ordinary rather than rare, so it is a trade: take the pen the other side is
+   * holding and they get the one just put down. See `tradedFor`.
+   */
+  const choosePen = (side: Side, id: PenId) => {
+    setState((s) => {
+      const held = s.models[side];
+      if (held === id) return s;
+      const theirs = tradedFor(id, held, s.models[other(side)]);
+      return { ...s, models: side === "a" ? { a: id, b: theirs } : { a: theirs, b: id } };
+    });
   };
 
   const resting = useMemo(() => frameOf(match.world), [match.world]);
@@ -383,11 +394,41 @@ export function Game() {
                       </div>
                     </div>
 
+                    {/*
+                     * One catalogue per side. It was one, and the pen at the other end of the desk
+                     * was whatever was left over, so in a match between two people in the room only
+                     * one of them ever chose. Both rows are here whoever the opponent is: the bot
+                     * holds a pen too, the choice costs it nothing, and a row that came and went
+                     * with the opponent would resize the desk behind the open panel.
+                     */}
                     <div className="flex w-full flex-col items-center gap-1 sm:contents">
-                      <span id="nib-pen" className="text-xs text-ink-soft sm:justify-self-end">
+                      <span
+                        id="nib-pen-you"
+                        className="text-xs text-ink-soft sm:justify-self-end"
+                      >
                         Your pen
                       </span>
-                      <PenPicker chosen={models.a} labelledBy="nib-pen" onChoose={choosePen} />
+                      <PenPicker
+                        chosen={models.a}
+                        name="pen-you"
+                        labelledBy="nib-pen-you"
+                        onChoose={(id) => choosePen(YOU, id)}
+                      />
+                    </div>
+
+                    <div className="flex w-full flex-col items-center gap-1 sm:contents">
+                      <span
+                        id="nib-pen-them"
+                        className="text-xs text-ink-soft sm:justify-self-end"
+                      >
+                        Their pen
+                      </span>
+                      <PenPicker
+                        chosen={models.b}
+                        name="pen-them"
+                        labelledBy="nib-pen-them"
+                        onChoose={(id) => choosePen(BOT, id)}
+                      />
                     </div>
                   </div>
                 </div>

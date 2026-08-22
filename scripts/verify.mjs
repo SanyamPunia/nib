@@ -774,15 +774,29 @@ try {
   await page.waitForSelector("canvas");
   await new Promise((r) => setTimeout(r, 300));
 
-  const pickPen = (name) =>
-    page.evaluate((wanted) => {
-      const input = [...document.querySelectorAll('input[type="radio"][name="pen"]')].find(
-        (el) => el.getAttribute("aria-label") === wanted,
-      );
-      if (!(input instanceof HTMLElement)) return false;
-      input.click();
-      return true;
-    }, name);
+  /* One catalogue per side, so which row is being picked from is part of the address. */
+  const pickPen = (name, row = "pen-you") =>
+    page.evaluate(
+      (wanted, group) => {
+        const input = [
+          ...document.querySelectorAll(`input[type="radio"][name="${group}"]`),
+        ].find((el) => el.getAttribute("aria-label") === wanted);
+        if (!(input instanceof HTMLElement)) return false;
+        input.click();
+        return true;
+      },
+      name,
+      row,
+    );
+
+  const heldPens = () =>
+    page.evaluate(() => {
+      const checked = (group) =>
+        [...document.querySelectorAll(`input[type="radio"][name="${group}"]`)]
+          .filter((el) => el.checked)
+          .map((el) => el.getAttribute("aria-label"));
+      return { you: checked("pen-you"), them: checked("pen-them") };
+    });
 
   await openSetup();
   await panelSettled();
@@ -797,12 +811,33 @@ try {
   await new Promise((r) => setTimeout(r, 250));
   const withBrick = await canvasHash();
   check("taking the opponent's pen moves them off it", withBrick !== withGraphite);
-  const bothNamed = await page.evaluate(() =>
-    [...document.querySelectorAll('input[type="radio"][name="pen"]')]
-      .filter((el) => el.checked)
-      .map((el) => el.getAttribute("aria-label")),
+  const afterTaking = await heldPens();
+  check(
+    "exactly one pen is marked on each side",
+    afterTaking.you.length === 1 && afterTaking.them.length === 1,
+    `you ${afterTaking.you.join(",")}, them ${afterTaking.them.join(",")}`,
   );
-  check("exactly one pen is marked as yours", bothNamed.length === 1, bothNamed.join(","));
+
+  /*
+   * The other end of the desk belongs to somebody too. There was one catalogue for a long time and
+   * the far pen was whatever was left over, so in a match between two people in the room only one
+   * of them ever chose.
+   *
+   * Taking a pen the other side is holding trades, rather than bumping them onto whichever model
+   * happens to be free first. Both rows are on screen at once, so a bump is visible as a choice
+   * being undone by somebody else's click.
+   */
+  check("the other side has a catalogue of its own", await pickPen("Brick", "pen-them"));
+  await new Promise((r) => setTimeout(r, 250));
+  const traded = await heldPens();
+  check(
+    "taking the other side's pen trades, it does not bump",
+    traded.them[0] === "Brick" && traded.you[0] === "Graphite",
+    `you ${traded.you.join(",")}, them ${traded.them.join(",")}`,
+  );
+  check("the two sides never hold one model", traded.you[0] !== traded.them[0]);
+  const afterTheirs = await canvasHash();
+  check("choosing the other side's pen redraws the desk", afterTheirs !== withBrick);
   await page.screenshot({ path: `${SHOTS}/pens.png` });
 
   /*
@@ -841,8 +876,8 @@ try {
   await openSetup();
   await panelSettled();
   const clipped = await page.evaluate(() => {
-    const labels = [...document.querySelectorAll('input[type="radio"][name="pen"]')].map((el) =>
-      (el.parentElement ?? el).getBoundingClientRect(),
+    const labels = [...document.querySelectorAll('input[type="radio"][name^="pen-"]')].map(
+      (el) => (el.parentElement ?? el).getBoundingClientRect(),
     );
     const lowest = Math.max(...labels.map((r) => r.bottom));
     return { lowest, viewport: window.innerHeight };

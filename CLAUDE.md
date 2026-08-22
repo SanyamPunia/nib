@@ -354,6 +354,16 @@ three.
 It stays **one** radiogroup. The split is how it looks, not what it is: exactly one of the four is
 the opponent, and a screen reader should hear one choice, not two.
 
+### There is a catalogue per side
+
+Both pens on the desk belong to somebody. There was one row for a long time and the far pen was
+whatever was left over, so in a match between two people in the room only one of them ever chose.
+
+**Both rows are there whoever the opponent is.** The bot holds a pen too and letting it be chosen
+costs nothing, while a row that came and went with the opponent would resize the desk behind an open
+panel. The two rows are two radio groups with different `name` attributes, because two groups sharing
+one name are a single group to the browser and the second row would uncheck the first.
+
 ### The pen catalogue is one row, at every width
 
 Six columns on a phone, one flex row above `sm`. It was three by two, which cost a row of footer
@@ -461,8 +471,14 @@ of a pen in this project.
 **A preview shows the tip and a short run of barrel, not the whole pen.** Fourteen centimetres in
 sixty pixels puts the tip, the collar and the grip seam within two pixels of each other.
 
-**No two pens on a desk may be the same model.** `distinctFrom` moves the opponent off whichever
-model the player takes. Two identical pens is a board nobody can read.
+**No two pens on a desk may be the same model.** Two identical pens is a board nobody can read, so
+`tradedFor` keeps them apart.
+
+**A clash is settled by a trade, not by a bump.** There is a catalogue per side, so both people in a
+two-player match choose and both choose from the same six. Taking the pen the other side is holding
+hands them the one just put down, which leaves each of them with a pen they picked. Handing them the
+first free model instead would undo a choice somebody had already made, and with both rows on screen
+at once that is visible: a click in one row moves the selection in the other.
 
 Colour lives in `globals.css` as one token pair per model, and `PEN_DOT` is the single place a pen
 id becomes a class name. It is written out rather than assembled, because Tailwind finds the

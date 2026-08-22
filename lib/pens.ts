@@ -132,12 +132,16 @@ export const PEN_DOT: Record<PenId, string> = {
 };
 
 /**
- * A pen for the opponent that is not the player's.
+ * The pen the other side is left holding once this side takes `chosen`.
  *
- * Two identical pens on one desk is a board nobody can read, so this is a constraint rather than
- * a nicety. It keeps whatever the opponent already had unless that is now the player's choice.
+ * Two identical pens on one desk is a board nobody can read, so keeping the two apart is a
+ * constraint rather than a nicety. Both sides choose from the same six, so the clash is a real one
+ * and not a corner case: taking the pen the other side is holding is a trade, and they get the one
+ * that was just put down. Handing them the first free model instead would quietly undo a choice
+ * somebody had already made.
+ *
+ * The invariant holds either way round, because the two are never the same to begin with.
  */
-export function distinctFrom(mine: PenId, theirs: PenId): PenId {
-  if (theirs !== mine) return theirs;
-  return PEN_IDS.find((id) => id !== mine) ?? "brick";
+export function tradedFor(chosen: PenId, mine: PenId, theirs: PenId): PenId {
+  return theirs === chosen ? mine : theirs;
 }

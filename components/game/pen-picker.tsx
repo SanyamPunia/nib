@@ -84,6 +84,14 @@ function PenPreview({ id }: { id: PenId }) {
 
 interface PenPickerProps {
   chosen: PenId;
+  /**
+   * The radio group's form name.
+   *
+   * There is a picker per side, and two groups sharing one name are one group to the browser: the
+   * second row would uncheck the first every time it was used. It is a prop rather than a constant
+   * for that reason alone.
+   */
+  name: string;
   /** Id of the visible label that names this group. Supplied by whatever lays the row out. */
   labelledBy: string;
   onChoose: (id: PenId) => void;
@@ -107,7 +115,7 @@ interface PenPickerProps {
  * The group is named by a label the caller owns, because that label is a cell in the caller's grid.
  * A legend of its own would either duplicate it or break the alignment that makes the row readable.
  */
-export function PenPicker({ chosen, labelledBy, onChoose }: PenPickerProps) {
+export function PenPicker({ chosen, name, labelledBy, onChoose }: PenPickerProps) {
   return (
     <div
       role="radiogroup"
@@ -137,7 +145,7 @@ export function PenPicker({ chosen, labelledBy, onChoose }: PenPickerProps) {
           >
             <input
               type="radio"
-              name="pen"
+              name={name}
               value={id}
               checked={id === chosen}
               onChange={() => onChoose(id)}
