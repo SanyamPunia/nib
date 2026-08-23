@@ -745,13 +745,19 @@ phone that could not build an `AudioContext`, or is sitting on its silent switch
 the pens met. Nothing sniffs what kind of device this is: the method being there is the only honest
 test, and iOS Safari not having it at all is a case the code has to survive rather than detect.
 
-**On an iPhone, two things about this are the platform's and not ours.** The ringer switch silences
-Web Audio, and that is left alone deliberately: claiming the `playback` audio session would make the
-game audible on silent, at the price of interrupting whatever the person was already listening to,
-and a pen game does not get to stop somebody's podcast. Sound on iOS therefore means the ringer
-switch is off silent. And WebKit has never shipped the Vibration API, so `navigator.vibrate` is
-undefined in every browser on iOS, all of which are WebKit underneath. There is no web-exposed
-haptic there to fall back on, which is why the buzz checks for the method rather than for a device.
+**The page claims the `playback` audio session, and that is what makes it audible on an iPhone.**
+The ringer switch silences Web Audio and does not silence an `<audio>` element, so a page playing
+its sounds through `new Audio().play()` makes noise on a phone set to silent while this one did not.
+That asymmetry was reported as no sound at all on a phone, next to another game on the same phone
+that worked, and it took a look at the other game's source to see the difference. `claimAudioSession`
+is the fix, it is WebKit only and Safari 16.4 and later, and the cost is that iOS now treats these
+knocks as media and interrupts whatever was already playing. Deleting that one call is how to go
+back to respecting the switch.
+
+**WebKit has never shipped the Vibration API,** so `navigator.vibrate` is undefined in every browser
+on iOS, all of which are WebKit underneath. There is no web-exposed haptic there to fall back on,
+which is why the buzz checks for the method rather than for a device. On an iPhone there is no buzz
+and there is no way to add one from a web page.
 
 **Unlocking a context takes more than `resume()`.** Chrome is happy with it. WebKit wants a source
 node actually started inside the gesture before it will let a context out of its suspended state,

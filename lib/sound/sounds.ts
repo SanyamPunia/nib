@@ -9,13 +9,13 @@
  * One `AudioContext` for both, because a page needs only one and a second would be a second thing
  * to unlock.
  *
- * **On an iPhone, two things here are the platform's call and not this module's.** The ringer switch
- * silences Web Audio, and that is left alone on purpose: claiming the `playback` audio session would
- * make the game audible on silent, at the price of interrupting whatever the person was already
- * listening to. A pen game does not get to stop somebody's podcast. And WebKit has never shipped the
- * Vibration API, so `navigator.vibrate` is undefined in every browser on iOS, all of which are
- * WebKit. There is no web-exposed haptic to fall back to. Both are why the checks below are for the
- * method being there rather than for what kind of device this is. Everything here fails silently on purpose. A browser with no Web Audio, a file that
+ * **On an iPhone this module has to ask for two things nothing else needs.**
+ *
+ * The ringer switch silences Web Audio and does not silence an `<audio>` element, which is why a
+ * page using `new Audio().play()` makes noise on a phone set to silent and this one did not. The
+ * fix is the audio session, below. WebKit has also never shipped the Vibration API, so
+ * `navigator.vibrate` is undefined in every browser on iOS, all of which are WebKit underneath, and
+ * there is no web-exposed haptic to fall back to. That one is not fixable from here. Everything here fails silently on purpose. A browser with no Web Audio, a file that
  * will not fetch, a context the platform refuses to start: none of them may throw into a playback
  * loop that is drawing the game. Sound is the last thing in this product that should be able to
  * break it.
@@ -110,6 +110,31 @@ let lastKnock = -1;
 let winPlaying: AudioBufferSourceNode | null = null;
 
 /**
+ * Ask iOS to treat this page as something worth hearing.
+ *
+ * Web Audio is silenced by the ringer switch unless the page says it is playing media, and a page
+ * that plays its sounds through `<audio>` elements never has to ask, because a media element counts
+ * as media by being one. That difference is the whole reason this game was silent on a phone while
+ * another one on the same phone was not.
+ *
+ * The cost is real and is the reason this is one line rather than the default: iOS now treats these
+ * knocks as media, so they interrupt whatever the person was already listening to. Removing this
+ * call is how to go back to respecting the switch.
+ *
+ * WebKit only, Safari 16.4 and later. Nothing else has the API and nothing else needs it.
+ */
+function claimAudioSession(): void {
+  /* Not in lib.dom yet, so the shape is declared at the one place that touches it. */
+  const session = (navigator as Navigator & { audioSession?: { type: string } }).audioSession;
+  if (!session) return;
+  try {
+    session.type = "playback";
+  } catch {
+    /* A session that will not be set is a session that stays as it was. */
+  }
+}
+
+/**
  * Wake a context up, from inside the gesture that is allowed to.
  *
  * `resume()` on its own is enough for Chrome and is not enough for WebKit, which wants a source
@@ -121,6 +146,7 @@ let winPlaying: AudioBufferSourceNode | null = null;
  * Skipped once the context is running, so it happens once a session rather than once a press.
  */
 function unlock(ctx: AudioContext): void {
+  claimAudioSession();
   if (ctx.state !== "running") {
     try {
       const source = ctx.createBufferSource();
@@ -176,6 +202,8 @@ export function primeSounds(): void {
   }
   starting = true;
 
+  /* Before the context exists, so it is built into a session that is already the right one. */
+  claimAudioSession();
   const ctx = makeContext();
   if (!ctx) {
     /* Otherwise `starting` stays true with no kit behind it and the game is silent for good. */
